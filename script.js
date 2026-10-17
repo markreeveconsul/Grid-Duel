@@ -16,6 +16,42 @@
 
 // ===== SECTION A: RULES, SCOREBOARD CLASS, AND AI =====
 /* Pure rules and AI. No DOM, timers, or external dependencies. */
+
+// ===== DATABASE: saves finished matches to the SQLite server =====
+function getPlayerName() {
+  try {
+    let name = window.localStorage.getItem('grid-duel-player-name');
+    if (!name) {
+      name = (window.prompt('Enter your player name:') || '').trim().slice(0, 20) || 'Player';
+      window.localStorage.setItem('grid-duel-player-name', name);
+    }
+    return name;
+  } catch { return 'Player'; }
+}
+
+function saveMatchToDatabase(winner) {
+  // Capture the values now, because the board may be reset before the save runs.
+  const record = {
+    mode: gameMode, ruleset, difficulty, winner,
+    xWins: scores.X, oWins: scores.O, rounds: roundNumber
+  };
+  // Short delay so the win animation isn't frozen by the name prompt.
+  setTimeout(async () => {
+    record.name = record.mode === 'pvc' ? getPlayerName()
+                : record.mode === 'pvp' ? 'PvP' : 'AI vs AI';
+    try {
+      const res = await fetch('/api/matches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(record)
+      });
+      console.log('Saved match:', await res.json());
+    } catch (e) {
+      console.warn('Could not save match', e);
+    }
+  }, 1200);
+}
+
 const GridRules = (() => {
   'use strict';
   // One instance stores match scores and survives round restarts.
@@ -554,6 +590,7 @@ function makeMove(index,player) {
             const opponent = player === 'X' ? 'O' : 'X';
             if (scores[player] === 2 && scores[opponent] === 0) comebackEligible[opponent] = true;
             matchComplete = scores[player] === 3;
+            if (matchComplete) saveMatchToDatabase(player);
             drawWinLine(state.line);
             cells.forEach((cell,i) => cell.classList.toggle('winning',state.line.includes(i)));
             statusText.textContent = matchComplete ? playerName(player)+(gameMode === 'pvc' && player === HUMAN ? ' take the match!' : ' takes the match!') : winMessage(player);

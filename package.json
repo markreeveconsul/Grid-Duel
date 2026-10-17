@@ -1,0 +1,25 @@
+{
+  "scripts": {
+    "start": "node server/server.js"
+  },
+  "name": "grid-duel",
+  "version": "1.0.0",
+  "description": "",
+  "main": "script.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/markreeveconsul/Grid-Duel.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/markreeveconsul/Grid-Duel/issues"
+  },
+  "homepage": "https://github.com/markreeveconsul/Grid-Duel#readme",
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "express": "^5.3.0"
+  }
+}
