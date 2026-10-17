@@ -1,3 +1,130 @@
+/* GRID DUEL — STUDY COPY
+ * Read STUDY-FIRST.md before reading this whole file.
+ * Search the section names or function names below with Ctrl+F.
+ *
+ * Learning route (not execution order):
+ * 1. ScoreBoard, create(), play(), win() — data and game rules.
+ * 2. makeMove() — connects a click to a move, result, score and display.
+ * 3. startMatch(), newMatch(), restartGame() — round and match lifecycle.
+ * 4. advanceTurn(), choose() — computer turns and AI decisions.
+ * 5. pauseForSetup(), resumeFromSetup() — settings and timer cancellation.
+ * 6. Storm/texture functions — presentation; study these last.
+ *
+ * The browser runs top to bottom. Functions run when called; event callbacks
+ * run later after clicks or timer delays. Do not rearrange initialization lines.
+ */
+
+// ===== SECTION A: RULES, SCOREBOARD CLASS, AND AI =====
+/* Pure rules and AI. No DOM, timers, or external dependencies. */
+const GridRules = (() => {
+  'use strict';
+  // One instance stores match scores and survives round restarts.
+  class ScoreBoard {
+    constructor() { this.reset(); }
+    addWin(player) {
+      if (player !== 'X' && player !== 'O') throw new TypeError('Expected X or O');
+      this[player] += 1;
+      return this[player];
+    }
+    reset() { this.X = 0; this.O = 0; }
+  }
+  const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+  const other = p => p === 'X' ? 'O' : 'X';
+  const win = (b,p) => lines.find(line => line.every(i => b[i] === p));
+  const key = s => s.turn + ':' + s.board.map(v => v || '-').join('') + ':' + s.queues.X.join('') + ':' + s.queues.O.join('');
+  // A state object is a snapshot: board, turn, mark age, result and move count.
+  function create(rule = 'classic', starter = 'X') {
+    const s = { rule, turn: starter, board: Array(9).fill(''), queues: { X: [], O: [] }, moves: 0, winner: null, draw: null, line: null, seen: {} };
+    s.seen[key(s)] = 1;
+    return s;
+  }
+  const legal = s => s.winner || s.draw ? [] : s.board.flatMap((v,i) => v ? [] : [i]);
+  // Return a new state for a legal move, or null for an invalid move.
+  // Copying arrays prevents an AI trial move from changing the real board.
+  function play(s,i) {
+    if (!Number.isInteger(i) || !legal(s).includes(i)) return null;
+    const n = { ...s, board: [...s.board], queues: { X: [...s.queues.X], O: [...s.queues.O] }, seen: {...s.seen}, moves: s.moves + 1 };
+    const p = s.turn;
+    // Select an empty tile, then remove the oldest mark before checking victory.
+    if (s.rule === 'vanish' && n.queues[p].length === 3) n.board[n.queues[p].shift()] = '';
+    n.board[i] = p;
+    n.queues[p].push(i);
+    n.line = win(n.board,p) || null;
+    n.turn = other(p);
+    if (n.line) n.winner = p;
+    else if (n.board.every(Boolean)) n.draw = 'Board full';
+    else {
+      const k = key(n);
+      n.seen[k] = (n.seen[k] || 0) + 1;
+      if (n.seen[k] >= 3) n.draw = 'Position repeated three times';
+      else if (n.moves >= 60) n.draw = '60-move limit reached';
+    }
+    return n;
+  }
+  function evaluate(s,p) {
+    let score = 0;
+    for (const line of lines) {
+      const mine = line.filter(i => s.board[i] === p).length;
+      const theirs = line.filter(i => s.board[i] === other(p)).length;
+      if (!theirs) score += [0,1,7,100][mine];
+      if (!mine) score -= [0,1,7,100][theirs];
+    }
+    return score;
+  }
+  const ordered = s => [4,0,2,6,8,1,3,5,7].filter(i => !s.board[i]);
+  // AI: compare possible futures. Easy/Medium sometimes choose randomly.
+  function choose(s,difficulty = 'hard',random = Math.random) {
+    const moves = legal(s);
+    if (!moves.length) return null;
+    const pick = () => moves[Math.min(moves.length - 1,Math.floor(random() * moves.length))];
+    if (difficulty === 'easy' && random() < .7) return pick();
+    if (difficulty === 'medium' && random() < .2) return pick();
+    const player = s.turn;
+    const depth = s.rule === 'classic' ? 9 : difficulty === 'hard' ? 8 : 4;
+    const cache = new Map();
+    function classic(b,turn,left) {
+      if (win(b,player)) return 1000 + left;
+      if (win(b,other(player))) return -1000 - left;
+      if (b.every(Boolean)) return 0;
+      const k = b.map(v => v || '-').join('') + turn;
+      if (cache.has(k)) return cache.get(k);
+      let best = turn === player ? -Infinity : Infinity;
+      for (let i = 0; i < 9; i++) if (!b[i]) {
+        b[i] = turn;
+        const value = classic(b,other(turn),left - 1);
+        b[i] = '';
+        best = turn === player ? Math.max(best,value) : Math.min(best,value);
+      }
+      cache.set(k,best);
+      return best;
+    }
+    function search(position,left,alpha,beta) {
+      if (position.winner) return position.winner === player ? 1000 + left : -1000 - left;
+      if (position.draw) return 0;
+      if (!left) return evaluate(position,player);
+      const max = position.turn === player;
+      let best = max ? -Infinity : Infinity;
+      for (const i of ordered(position)) {
+        const value = search(play(position,i),left - 1,alpha,beta);
+        best = max ? Math.max(best,value) : Math.min(best,value);
+        if (max) alpha = Math.max(alpha,best); else beta = Math.min(beta,best);
+        if (beta <= alpha) break;
+      }
+      return best;
+    }
+    let best = -Infinity, result = moves[0];
+    for (const i of ordered(s)) {
+      const n = play(s,i);
+      const value = s.rule === 'classic' ? classic([...n.board],n.turn,depth - 1) : search(n,depth - 1,-Infinity,Infinity);
+      if (value > best) { best = value; result = i; }
+    }
+    return result;
+  }
+  const api = { create,play,legal,choose,key,win,lines,ScoreBoard };
+  return api;
+})();
+
+// ===== SECTION B: PAGE ELEMENTS, GAME CONTROLLER, AND EFFECTS =====
 const cells = document.querySelectorAll("#board .cell");
 const statusText = document.getElementById("status");
 const restartButton = document.getElementById("restart");
@@ -42,7 +169,9 @@ function restartAnimation(el, className) {
 let gameMode = "pvc";       // "pvc" | "pvp" | "cvc"
 let difficulty = "medium";  // "easy" | "medium" | "hard"
 let currentPlayer = "X";
-let gameActive = true;
+let gameActive = false;
+let matchStarted = false;
+let setupPaused = false;
 let moveCount = 0;
 const scores = new GridRules.ScoreBoard();
 
@@ -323,11 +452,16 @@ let roundResults = [];
 let state = GridRules.create();
 let aiTimer = null;
 let revision = 0;
-let effectsLevel = 'vivid';
+let effectsLevel = 'auto';
 let vividEffects = true;
 let soundEnabled = false;
 let audioContext = null;
-const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
+const systemMotionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
+// Auto follows the system. Explicit Vivid/Extreme selections enable motion.
+const motionPreference = {
+    get matches() { return effectsLevel === 'auto' && systemMotionPreference.matches; },
+    addEventListener(type,listener) { systemMotionPreference.addEventListener(type,listener); }
+};
 
 function isHumanControlled(player) {
     return gameMode === 'pvp' || (gameMode === 'pvc' && player === HUMAN);
@@ -377,9 +511,11 @@ cells.forEach((cell,index) => {
     });
 });
 function renderMark(cell,player) {
+    const slot=markSlots[Number(cell.dataset.index)];slot.style.visibility='';delete slot.dataset.landing;
     markSlots[Number(cell.dataset.index)].innerHTML = player === 'X' ? X_MARK : O_MARK;
 }
 function renderBoard(previous = []) {
+    updateTableAtmosphere();
     cells.forEach((cell,i) => {
         if (previous[i] !== board[i]) {
             markSlots[i].innerHTML = '';
@@ -402,6 +538,7 @@ function makeMove(index,player) {
     if (!gameActive || player !== currentPlayer) return;
     const next = GridRules.play(state,index);
     if (!next) return;
+    const landingReason = chooseLanding(state,next,player);
     const previous = board;
     state = next;
     board = state.board;
@@ -414,12 +551,14 @@ function makeMove(index,player) {
         aiTimer = null;
         if (state.winner) {
             scores.addWin(player);
+            const opponent = player === 'X' ? 'O' : 'X';
+            if (scores[player] === 2 && scores[opponent] === 0) comebackEligible[opponent] = true;
             matchComplete = scores[player] === 3;
             drawWinLine(state.line);
             cells.forEach((cell,i) => cell.classList.toggle('winning',state.line.includes(i)));
             statusText.textContent = matchComplete ? playerName(player)+(gameMode === 'pvc' && player === HUMAN ? ' take the match!' : ' takes the match!') : winMessage(player);
             statusText.className = 'status turn-'+player.toLowerCase();
-            triggerWinEffects(player,state.line);
+            if (!(matchComplete && comebackEligible[player])) triggerWinEffects(player,state.line);
             sound('win',player);
         } else {
             statusText.textContent = 'Round drawn';
@@ -440,13 +579,25 @@ function makeMove(index,player) {
     }
     document.getElementById('moveLabel').textContent = String(moveCount).padStart(2,'0')+' MOVES';
     renderBoard(previous);
+    placementFeedback(index,player,landingReason);
+    if (state.winner) awardFeedback(player);
     updateTensionEffects();
+    if (matchComplete && comebackEligible[player]) showEpicComeback(player,index);
 }
 function playerName(player) {
     return gameMode === 'pvc' ? player === HUMAN ? 'You' : 'AI' : gameMode === 'cvc' ? 'AI '+player : 'Player '+player;
 }
 function winMessage(player) { return playerName(player)+(gameMode === 'pvc' && player === HUMAN ? ' win the round!' : ' wins the round!'); }
 function updateStatusText() {
+    if (!matchStarted || setupPaused) {
+        statusText.textContent = matchStarted ? 'Match paused' : 'Ready when you are';
+        statusText.className = 'status';
+        document.getElementById('turnHint').textContent = matchStarted
+            ? 'Close setup to continue your round.'
+            : 'Choose your settings, then press Start match.';
+        boardEl.classList.remove('turn-x','turn-o');
+        return;
+    }
     statusText.textContent = isHumanControlled(currentPlayer) ? gameMode === 'pvc' ? 'Your move.' : 'Player '+currentPlayer+' to move.' : document.hidden ? 'AI paused' : playerName(currentPlayer)+' is thinking…';
     statusText.className = 'status turn-'+currentPlayer.toLowerCase();
     boardEl.classList.remove('turn-x','turn-o');
@@ -473,8 +624,15 @@ function updateMatchUI() {
     scoreXEl.textContent = scores.X;
     scoreOEl.textContent = scores.O;
     for (const p of ['X','O']) {
+        const display = document.querySelector('.score--'+p.toLowerCase());
+        display.classList.toggle('at-match-point',scores[p] === 2 && !matchComplete);
+        display.classList.toggle('match-victor',scores[p] === 3);
+        let badge = display.querySelector('.match-point-label');
+        if (!badge) { badge = document.createElement('span'); badge.className = 'match-point-label'; display.appendChild(badge); }
+        badge.textContent = scores[p] === 3 ? 'MATCH WINNER' : scores[p] === 2 && !matchComplete ? 'MATCH POINT' : '';
+        badge.hidden = !badge.textContent;
         document.getElementById('label'+p).textContent = (gameMode === 'pvc' ? p === 'X' ? 'YOU' : 'AI' : gameMode === 'cvc' ? 'AI' : 'PLAYER')+' / '+p;
-        document.getElementById('pips'+p).innerHTML = [0,1,2].map(i => '<i class="'+(i<scores[p] ? 'filled' : '')+'"></i>').join('');
+        document.getElementById('pips'+p).innerHTML = [0,1,2].map(i => '<i class="'+(i<scores[p] ? 'filled' : scores[p]===2 && !matchComplete ? 'fuse-armed' : '')+'"></i>').join('');
     }
     document.getElementById('roundLabel').textContent = matchComplete ? 'MATCH COMPLETE' : 'ROUND '+String(roundNumber).padStart(2,'0');
     const log = document.getElementById('roundHistory');
@@ -516,11 +674,17 @@ document.getElementById('soundToggle').addEventListener('click',() => { soundEna
 function syncEffects() {
     vividEffects = effectsLevel !== 'calm' && !motionPreference.matches;
     stopLightning();
+    document.body.classList.toggle('reduced-motion',motionPreference.matches);
     document.body.classList.toggle('vivid-effects',vividEffects);
     document.body.classList.toggle('extreme-effects',vividEffects && effectsLevel === 'extreme');
     document.getElementById('effectsSelect').value = effectsLevel;
-    document.getElementById('motionNote').hidden = !motionPreference.matches;
-    if (!vividEffects) clearCracks();
+    const effectsNote = document.getElementById('motionNote');
+    effectsNote.hidden = false;
+    effectsNote.textContent = motionPreference.matches
+        ? 'Auto follows reduced motion. Choose Vivid or Extreme to enable animations.'
+        : effectsLevel === 'calm' ? 'Calm: storm and landing animations are off.'
+        : 'Animations enabled. Lightning begins after five moves in a round.';
+    if (!vividEffects) { clearComebackEffects(); clearTableFeedback(); }
     if (gameActive) updateTensionEffects();
 }
 document.getElementById('effectsSelect').addEventListener('change',event => {
@@ -578,6 +742,7 @@ function updateTensionEffects() {
 }
 
 function resetTensionEffects() {
+    impactStrikeCount = 0; impactStrikeGap = 3;
     document.body.classList.remove("tension-mid", "tension-high", "tension-critical");
     embersEl.classList.remove("tier-mid", "tier-high", "tier-critical");
     smokeEl.classList.remove("tier-high", "tier-critical");
@@ -668,6 +833,27 @@ function emitSurge(index,impact = false) {
 // Strike frequency tightens as the tier climbs.
 
 let lightningTimer = null;
+// Alternate gaps of three and four strikes; restart the cadence each round.
+let impactStrikeCount = 0;
+let impactStrikeGap = 3;
+let impactFrameTimer = null;
+let impactFramesEnabled = true;
+function clearImpactFrame() {
+    clearTimeout(impactFrameTimer);
+    impactFrameTimer = null;
+    document.body.classList.remove('impact-frame');
+}
+function countLightningImpact() {
+    if (!gameActive || !vividEffects || motionPreference.matches || document.hidden) return;
+    impactStrikeCount++;
+    if (impactStrikeCount < impactStrikeGap) return;
+    impactStrikeCount = 0;
+    impactStrikeGap = impactStrikeGap === 3 ? 4 : 3;
+    if (!impactFramesEnabled) return;
+    clearImpactFrame();
+    document.body.classList.add('impact-frame');
+    impactFrameTimer = setTimeout(clearImpactFrame, 85);
+}
 
 const STRIKE_INTERVAL = {
     high:     [2300, 3400],
@@ -705,6 +891,7 @@ function lightningTier() {
 }
 
 function stopLightning() {
+    clearImpactFrame();
     stopSurges();
     arenaEl.classList.remove("jolt");
     clearTimeout(lightningTimer);
@@ -714,6 +901,7 @@ function stopLightning() {
 }
 
 function strikeLightning() {
+    countLightningImpact();
     restartAnimation(lightningEl, "strike");
     restartAnimation(arenaEl, "jolt");
     strikeBoltOnBoard();
@@ -771,6 +959,7 @@ function impactCell(index) {
     restartAnimation(cell, "scorched");
     restartAnimation(cell, "electrified");
     emitSurge(index, true);
+    updateTableAtmosphere();
 }
 
 function clearCracks() {
@@ -959,23 +1148,371 @@ function spawnSparks(pattern, color) {
 }
 
 
+
+// ---------- Match-point displays and 0–2 comeback finale ----------
+let comebackEligible = { X: false, O: false };
+const comebackTimers = new Set();
+let comebackGeneration = 0;
+let comebackFrame = null;
+function clearComebackEffects() {
+    comebackGeneration++;
+    comebackTimers.forEach(clearTimeout); comebackTimers.clear();
+    cancelAnimationFrame(comebackFrame); comebackFrame = null;
+    document.querySelectorAll('.comeback-text,.comeback-scene,.comeback-fissures').forEach(el => el.remove());
+    boardEl.classList.remove('comeback-break','comeback-collapse');
+    document.querySelector('.board-wrap').classList.remove('comeback-crater','comeback-quake');
+    fxLayer.classList.remove('comeback-strike');
+    boltSvg.classList.remove('strike');
+    arenaEl.classList.remove('comeback-powercut','comeback-charge','jolt');
+    delete arenaEl.dataset.comebackWinner;
+    cells.forEach(cell=>cell.classList.remove('comeback-target'));
+    document.querySelector('.board-wrap').classList.remove('comeback-rumble');
+    [boltPath,boltOutline,boltBranch1,boltBranch2].forEach(path=>path.removeAttribute('pathLength'));
+    clearImpactFrame();
+}
+function comebackLater(callback, delay) {
+    const generation = comebackGeneration;
+    const timer = setTimeout(() => {
+        comebackTimers.delete(timer);
+        if (generation === comebackGeneration && vividEffects && !motionPreference.matches) callback();
+    }, delay);
+    comebackTimers.add(timer);
+}
+// Draw original 5x7 pixel letters as SVG rectangles. There is no banner panel.
+function comebackText(player) {
+    const alphabet = {
+        A:['01110','10001','10001','11111','10001','10001','10001'],
+        B:['11110','10001','10001','11110','10001','10001','11110'],
+        C:['01111','10000','10000','10000','10000','10000','01111'],
+        E:['11111','10000','10000','11110','10000','10000','11111'],
+        I:['111','010','010','010','010','010','111'],
+        K:['10001','10010','10100','11000','10100','10010','10001'],
+        M:['10001','11011','10101','10101','10001','10001','10001'],
+        O:['01110','10001','10001','10001','10001','10001','01110'],
+        P:['11110','10001','10001','11110','10000','10000','10000'],
+        X:['10001','10001','01010','00100','01010','10001','10001'],
+        Y:['10001','10001','01010','00100','00100','00100','00100']
+    };
+    const box = document.createElement('div'); box.className = 'comeback-text';
+    box.setAttribute('role','status'); box.setAttribute('aria-label','EPIC COMEBACK BY '+player);
+    for(const phrase of ['EPIC COMEBACK','BY '+player]) {
+        const svg = svgElement('svg',{'aria-hidden':'true','shape-rendering':'crispEdges'});
+        let x = 0;
+        for(const letter of phrase) {
+            if(letter === ' ') { x += 4; continue; }
+            const glyph = alphabet[letter];
+            glyph.forEach((row,y) => [...row].forEach((pixel,i) => {
+                if(pixel === '1') svg.appendChild(svgElement('rect',{x:x+i,y,width:1,height:1}));
+            }));
+            x += glyph[0].length+1;
+        }
+        svg.setAttribute('viewBox','0 0 '+(x-1)+' 7'); box.appendChild(svg);
+    }
+    return box;
+}
+// Fire is a low-resolution heat simulation: heat rises, drifts and cools.
+function startCraterFire(scene, origin) {
+    const canvas = document.createElement('canvas'); canvas.className = 'crater-fire';
+    canvas.width = canvas.height = 128; canvas.setAttribute('aria-hidden','true'); scene.appendChild(canvas);
+    const ctx = canvas.getContext('2d');
+    if(!ctx) { canvas.remove(); return; }
+    const heat = new Uint8Array(128*128);
+    const palette = [[0,0,0,0],[91,24,12,150],[167,42,13,220],[234,76,17,245],[255,133,31,255],[255,195,66,255],[255,232,139,255]];
+    const vents = [18,39,57,79,102,117];
+    const start = performance.now(); let last = 0;
+    const generation = comebackGeneration;
+    function frame(now) {
+        if(generation !== comebackGeneration) return;
+        if(now-start > 5400 || !vividEffects || motionPreference.matches) { canvas.remove(); comebackFrame=null; return; }
+        if(now-last > 55 && !document.hidden) {
+            last = now;
+            const fade = Math.min(1,(5400-(now-start))/1500);
+            for(let x=0;x<128;x++) {
+                const active = vents.some(v=>Math.abs(x-v)<3+Math.sin(now*.003+v)*2);
+                heat[127*128+x] = active ? (180+Math.random()*75)*fade : 0;
+            }
+            // One connected ignition front climbs the entire board in 1.8 seconds.
+            // Irregular tips and cooler gaps keep it from looking like a flat wipe.
+            const rise=Math.min(1,(now-start)/1800);
+            for(let x=1;x<127;x++) {
+                const tip=Math.max(1,Math.min(126,Math.round(126-rise*125+Math.sin(x*.17+now*.004)*6+Math.sin(x*.43)*3)));
+                for(let y=tip;y<Math.min(128,tip+10);y++) {
+                    const fuel=.48+.52*Math.sin(x*.14+now*.002);
+                    if(fuel>.42) heat[y*128+x]=Math.max(heat[y*128+x],(155+fuel*100)*fade);
+                }
+            }
+            // Short-lived heat sources follow the fissures out from the hit tile.
+            if(now-start<1700) for(let arm=0;arm<8;arm++) {
+                const angle=arm*Math.PI/4;
+                const distance=Math.min(45,(now-start)*.035);
+                const hx=Math.round(origin.x*1.27+Math.cos(angle)*distance);
+                const hy=Math.round(origin.y*1.27+Math.sin(angle)*distance);
+                if(hx>1&&hx<126&&hy>1&&hy<126) heat[hy*128+hx]=250*fade;
+            }
+            for(let y=0;y<127;y++) for(let x=0;x<128;x++) {
+                const drift=Math.floor(Math.random()*3)-1;
+                const sample=Math.max(1,Math.min(126,x+drift));
+                const row=(y+1)*128;
+                const below=heat[row+sample]*.6+(heat[row+sample-1]+heat[row+sample+1])*.2;
+                heat[y*128+x]=Math.max(0,below-2-Math.random()*5);
+            }
+            const img=ctx.createImageData(128,128);
+            heat.forEach((value,i)=>{const c=palette[Math.min(6,Math.floor(value/38))];img.data.set(c,i*4);});
+            ctx.putImageData(img,0,0);
+            // Sparse rising sparks rather than a uniform shower.
+            for(let k=0;k<12;k++) {
+                const age=((now-start)*.025+k*13)%100;
+                ctx.fillStyle=k%3 ? '#ee7c24' : '#ffe28d';
+                ctx.globalAlpha=Math.max(0,(1-age/100)*fade);
+                ctx.fillRect(Math.round(vents[k%vents.length]+Math.sin(age*.1+k)*5),Math.round(119-age),1,k%2+1);
+            }
+            ctx.globalAlpha=1;
+        }
+        comebackFrame=requestAnimationFrame(frame);
+    }
+    comebackFrame=requestAnimationFrame(frame);
+}
+function fractureBoard(wrap, origin) {
+    const fissures=svgElement('svg',{viewBox:'0 0 100 100','class':'comeback-fissures','aria-hidden':'true'});
+    // All faults start at the actual winning tile, including corner wins.
+    const ends=[[0,0],[50,0],[100,0],[100,50],[100,100],[50,100],[0,100],[0,50]];
+    ends.forEach(([ex,ey],arm)=>{
+        let d='M '+origin.x+' '+origin.y;
+        for(let step=1;step<=4;step++) {
+            const t=step/4, bend=step===4?0:(arm%2?1:-1)*4;
+            const x=Math.max(0,Math.min(100,origin.x+(ex-origin.x)*t+bend));
+            const y=Math.max(0,Math.min(100,origin.y+(ey-origin.y)*t-bend));
+            d+=' L '+x+' '+y;
+        }
+        fissures.append(svgElement('path',{d,'class':'fault-rim',pathLength:1}),svgElement('path',{d,'class':'fault-void',pathLength:1}));
+    });
+    wrap.appendChild(fissures); boardEl.classList.add('comeback-break');
+}
+// Each tile breaks into four irregular polygons, then drops inside a clipped pit.
+function sinkBoard(wrap,scene,hitIndex) {
+    const r=wrap.getBoundingClientRect();
+    cells.forEach((cell,index)=>{
+        const tile=cell.getBoundingClientRect();
+        const cx=37+(index*17)%27, cy=35+(index*13)%29;
+        const polygons=[
+            '0% 0%,100% 0%,'+cx+'% '+cy+'%',
+            '100% 0%,100% 100%,'+cx+'% '+cy+'%',
+            '100% 100%,0% 100%,'+cx+'% '+cy+'%',
+            '0% 100%,0% 0%,'+cx+'% '+cy+'%'];
+        polygons.forEach((polygon,k)=>{
+            const piece=document.createElement('div'); piece.className='ground-fragment';
+            piece.style.left=(tile.left-r.left)/r.width*100+'%'; piece.style.top=(tile.top-r.top)/r.height*100+'%';
+            piece.style.width=tile.width/r.width*100+'%'; piece.style.height=tile.height/r.height*100+'%';
+            piece.style.clipPath='polygon('+polygon+')';
+            piece.style.setProperty('--sink-delay',(.08*k+Math.hypot(index%3-hitIndex%3,Math.floor(index/3)-Math.floor(hitIndex/3))*.22)+'s');
+            piece.style.setProperty('--sink-turn',((index+k)%2 ? 14+k*6 : -19-k*5)+'deg');
+            piece.style.setProperty('--sink-x',((index%3-1)*10+(k-1.5)*5)+'px');
+            const face=document.createElement('div'); face.className='fragment-face';
+            const mark=cell.querySelector('.mark-slot'); if(mark) face.innerHTML=mark.innerHTML;
+            piece.appendChild(face); scene.appendChild(piece);
+        });
+    });
+    boardEl.classList.add('comeback-collapse'); wrap.classList.add('comeback-crater','comeback-quake');
+    winLine.classList.remove('drawn');
+}
+function showEpicComeback(player, hitIndex) {
+    clearComebackEffects(); clearTableFeedback(); clearStamp(); stopLightning();
+    const wrap=document.querySelector('.board-wrap');
+    document.documentElement.style.setProperty('--winner-color',TEAM_COLOR[player]);
+    document.getElementById('turnHint').textContent='From 0–2 down to match winner. Play again to rebuild the board.';
+    if(!vividEffects || motionPreference.matches) { wrap.appendChild(comebackText(player)); return; }
+    arenaEl.dataset.comebackWinner=player.toLowerCase();
+    arenaEl.classList.add('comeback-powercut');
+    cells[hitIndex].classList.add('comeback-target');
+    winLine.classList.remove('drawn');
+    // Silence, then one pulse from the winner's scoreboard into the table.
+    comebackLater(()=>arenaEl.classList.add('comeback-charge'),300);
+    comebackLater(()=>{
+        const rect=cells[hitIndex].getBoundingClientRect();
+        const bolt=buildBoltPath(rect.left+rect.width/2,rect.top+rect.height/2);
+        boltSvg.setAttribute('viewBox','0 0 '+innerWidth+' '+innerHeight);
+        boltPath.setAttribute('d',bolt.main); boltOutline.setAttribute('d',bolt.main);
+        [boltPath,boltOutline,boltBranch1,boltBranch2].forEach(path=>path.setAttribute('pathLength','1'));
+        const branches=buildBranches(bolt.points);
+        boltBranch1.setAttribute('d',branches[0]||'');boltBranch2.setAttribute('d',branches[1]||'');
+        fxLayer.classList.add('comeback-strike');restartAnimation(boltSvg,'strike');
+    },900);
+    comebackLater(()=>{
+        arenaEl.classList.remove('comeback-powercut','comeback-charge');
+        if(impactFramesEnabled && !document.hidden) {
+            clearImpactFrame();document.body.classList.add('impact-frame');
+            impactFrameTimer=setTimeout(clearImpactFrame,85);
+        }
+        const origin=cellCenterPercent(hitIndex);
+        fractureBoard(wrap,origin);
+        restartAnimation(arenaEl,'jolt');wrap.classList.add('comeback-quake');
+        const scene=document.createElement('div');scene.className='comeback-scene';
+        scene.setAttribute('aria-hidden','true');wrap.appendChild(scene);
+        collapseDust(scene);
+        // Dust leads the fire, so the impact reads as broken stone.
+        comebackLater(()=>startCraterFire(scene,origin),250);
+    },1000);
+    comebackLater(()=>{
+        const scene=wrap.querySelector('.comeback-scene');
+        if(scene) sinkBoard(wrap,scene,hitIndex);
+    },1400);
+    comebackLater(()=>{
+        wrap.classList.remove('comeback-quake');
+        wrap.classList.add('comeback-rumble');
+        arenaEl.classList.remove('jolt');
+    },1900);
+    // The bolt has faded; the lettering stays still while the floor falls away.
+    comebackLater(()=>wrap.appendChild(comebackText(player)),2200);
+    comebackLater(()=>{
+        wrap.classList.remove('comeback-rumble');
+        fxLayer.classList.remove('comeback-strike');
+        boltSvg.classList.remove('strike');
+        wrap.querySelector('.comeback-fissures')?.remove();
+        const scene=wrap.querySelector('.comeback-scene');
+        if(scene) for(let i=0;i<14;i++) {
+            const mote=document.createElement('i');mote.className='aftermath-dust';
+            mote.style.left=(8+i*37%84)+'%';mote.style.top=(20+i*23%65)+'%';
+            mote.style.setProperty('--delay',(i%5*.14)+'s');scene.appendChild(mote);
+        }
+    },4200);
+}
+
+// ---------- Table atmosphere: decoration never changes the game state ----------
+const tableTimers = new Set();
+let tacticalLandingUsed = false;
+let landingSerial = 0;
+const cableSvg = svgElement('svg',{'class':'power-cables','aria-hidden':'true'});
+arenaEl.appendChild(cableSvg);
+for(const player of ['X','O']) {
+    const group=svgElement('g',{'class':'cable-'+player.toLowerCase()});
+    for(const part of ['housing','edge','energy']) group.appendChild(svgElement('path',{'class':'cable-'+part,pathLength:100}));
+    cableSvg.appendChild(group);
+}
+const wear=document.createElement('div');wear.className='surface-wear';wear.setAttribute('aria-hidden','true');document.querySelector('.play-area').prepend(wear);
+let cableLayoutFrame=null;
+function updateTableAtmosphere() {
+    arenaEl.dataset.power=gameActive && !document.hidden ? currentPlayer.toLowerCase() : 'none';
+    wear.style.setProperty('--wear',String(.12+crackedCells.length*.035));
+    if(cableLayoutFrame!==null) return;
+    cableLayoutFrame=requestAnimationFrame(()=>{
+        cableLayoutFrame=null;
+        const a=arenaEl.getBoundingClientRect(), target=document.querySelector('.board-wrap').getBoundingClientRect();
+        cableSvg.setAttribute('viewBox','0 0 '+a.width+' '+a.height);
+        const left=document.querySelector('.score--x').getBoundingClientRect();
+        const right=document.querySelector('.score--o').getBoundingClientRect();
+        const mobile=innerWidth<=760, center=(target.left+target.right)/2-a.left;
+        const sourceLeft=mobile ? left.left+left.width/2 : left.right;
+        const sourceRight=mobile ? right.left+right.width/2 : right.left;
+        const spread=(sourceRight-sourceLeft)/2;
+        const y1=(mobile ? (left.bottom+right.bottom)/2 : (left.top+left.height*.66+right.top+right.height*.66)/2)-a.top;
+        const y2=(mobile ? target.top+12 : target.top+target.height*.65)-a.top;
+        // Reflect the same curve around the board center, including control points.
+        for(const p of ['X','O']) {
+            const sign=p==='X' ? -1 : 1;
+            const x1=center+sign*spread, x2=center+sign*(target.width/2+9);
+            const bend=mobile ? 25 : 80;
+            const d='M '+x1+' '+y1+' C '+x1+' '+(y1+bend)+','+x2+' '+(mobile ? y1+bend : y2+bend)+','+x2+' '+y2;
+            cableSvg.querySelectorAll('.cable-'+p.toLowerCase()+' path').forEach(path=>path.setAttribute('d',d));
+        }
+    });
+}
+function tableLater(fn,delay) {
+    const timer=setTimeout(()=>{tableTimers.delete(timer);fn();},delay);tableTimers.add(timer);
+}
+function clearTableFeedback() {
+    tableTimers.forEach(clearTimeout);tableTimers.clear();
+    document.querySelectorAll('.move-impact,.falling-mark,.landing-shadow,.score-award').forEach(el=>el.classList.contains('score-award') ? el.classList.remove('score-award') : el.remove());
+    cells.forEach(cell=>cell.classList.remove('placement'));
+    markSlots.forEach(slot=>{slot.style.visibility='';delete slot.dataset.landing;});
+    arenaEl.classList.remove('landing-jolt');
+}
+// Test actual legal next moves, including oldest-mark removal in Vanishing Marks.
+function immediateWins(position,player) {
+    const trial={...position,turn:player};
+    return GridRules.legal(trial).filter(i=>GridRules.play(trial,i)?.winner===player);
+}
+function chooseLanding(before,after,player) {
+    if(after.winner) return 'win';
+    if(after.draw || tacticalLandingUsed) return '';
+    const opponent=player==='X' ? 'O' : 'X';
+    const blocked=immediateWins(before,opponent).length>0 && immediateWins(after,opponent).length===0;
+    const threat=immediateWins(before,player).length===0 && immediateWins(after,player).length>0;
+    if(!blocked && !threat) return '';
+    tacticalLandingUsed=true;
+    return blocked ? 'block' : 'threat';
+}
+function placementFeedback(index,player,reason='') {
+    if(!vividEffects || motionPreference.matches) return;
+    const wrap=document.querySelector('.board-wrap'),r=wrap.getBoundingClientRect(),t=cells[index].getBoundingClientRect();
+    const heavy=Boolean(reason),duration=heavy ? 290 : 150;
+    const token=String(++landingSerial),slot=markSlots[index];
+    const falling=document.createElement('div');falling.className='falling-mark'+(heavy?' heavy-landing':'')+(reason==='win'?' winning-landing':'');
+    falling.dataset.reason=reason || 'normal';falling.setAttribute('aria-hidden','true');
+    falling.innerHTML=player==='X'?X_MARK:O_MARK;
+    falling.style.left=(t.left-r.left)/r.width*100+'%';falling.style.top=(t.top-r.top)/r.height*100+'%';
+    falling.style.width=t.width/r.width*100+'%';falling.style.height=t.height/r.height*100+'%';
+    falling.style.setProperty('--landing-color',TEAM_COLOR[player]);
+    slot.dataset.landing=token;slot.style.visibility='hidden';wrap.appendChild(falling);
+    const shadow=document.createElement('i');shadow.className='landing-shadow';shadow.setAttribute('aria-hidden','true');
+    shadow.style.left=(t.left+t.width/2-r.left)/r.width*100+'%';shadow.style.top=(t.top+t.height*.8-r.top)/r.height*100+'%';
+    shadow.style.setProperty('--land-time',duration+'ms');wrap.appendChild(shadow);
+    tableLater(()=>{
+        falling.remove();shadow.remove();
+        if(slot.dataset.landing!==token)return;
+        slot.style.visibility='';delete slot.dataset.landing;
+        slot.querySelectorAll('.stroke').forEach(stroke=>{stroke.style.animation='none';stroke.style.strokeDashoffset='0';});
+        restartAnimation(cells[index],'placement');
+        const effect=document.createElement('div');effect.className='move-impact move-'+player.toLowerCase()+(heavy?' heavy-impact':'');effect.setAttribute('aria-hidden','true');
+        effect.style.left=(t.left+t.width/2-r.left)/r.width*100+'%';effect.style.top=(t.top+t.height/2-r.top)/r.height*100+'%';
+        if(player==='O'){const ring=document.createElement('i');ring.className='move-ring';effect.appendChild(ring);}
+        for(let i=0;i<(heavy?12:8);i++){
+            const spark=document.createElement('i');spark.className=i<4?'move-spark':i<8?'move-dust':'landing-chip';
+            const angle=(i%4)*Math.PI/2+Math.PI/4;
+            spark.style.setProperty('--mx',Math.cos(angle)*(heavy?52:24)+'px');spark.style.setProperty('--my',Math.sin(angle)*(heavy?44:20)+'px');effect.appendChild(spark);
+        }
+        wrap.appendChild(effect);
+        if(heavy){arenaEl.style.setProperty('--land-shake',reason==='win'?'3px':'1.5px');restartAnimation(arenaEl,'landing-jolt');tableLater(()=>arenaEl.classList.remove('landing-jolt'),190);}
+        tableLater(()=>{effect.remove();cells[index].classList.remove('placement');},600);
+    },duration);
+}
+function awardFeedback(player) {
+    if(!vividEffects || motionPreference.matches)return;
+    const display=document.querySelector('.score--'+player.toLowerCase());restartAnimation(display,'score-award');
+    tableLater(()=>display.classList.remove('score-award'),850);
+}
+function collapseDust(scene) {
+    for(let i=0;i<30;i++) {
+        const bit=document.createElement('i');bit.className=i<12 ? 'fault-chip' : 'fault-dust';
+        bit.style.left=(8+(i*29)%84)+'%';bit.style.top=(12+(i*37)%72)+'%';
+        bit.style.setProperty('--dx',((i%2?1:-1)*(10+i%6*5))+'px');bit.style.setProperty('--dy',(35+i%7*12)+'px');bit.style.setProperty('--delay',(i%5*.06)+'s');scene.appendChild(bit);
+    }
+}
+window.addEventListener('resize',updateTableAtmosphere);
+
 // ---------- Round lifecycle ----------
 restartButton.addEventListener('click',() => {
+    if (!matchStarted) { startMatch(); return; }
+    if (setupPaused) return;
     if (matchComplete) { newMatch(); return; }
     if (!gameActive) { roundNumber++; roundStarter = roundStarter === 'X' ? 'O' : 'X'; }
     restartGame();
 });
 resetScoreButton.addEventListener('click',newMatch);
 function newMatch() {
+    comebackEligible = { X: false, O: false };
+    matchStarted = false; setupPaused = false;
+    clearCracks();
     scores.reset();
     roundNumber = 1; roundStarter = 'X'; matchComplete = false; roundResults = [];
     restartGame();
 }
 function restartGame() {
+    tacticalLandingUsed = false;
+    clearComebackEffects(); clearTableFeedback();
     revision++;
     clearTimeout(aiTimer); aiTimer = null;
     gameActive = false;
-    clearStamp(); resetTensionEffects(); clearCracks();
+    clearStamp(); resetTensionEffects();
     document.querySelectorAll('#fx .spark').forEach(spark => spark.remove());
     fxFlash.classList.remove('play'); arenaEl.classList.remove('jolt');
     state = GridRules.create(ruleset,roundStarter);
@@ -985,12 +1522,55 @@ function restartGame() {
     });
     boardEl.classList.remove('shake'); winLine.classList.remove('drawn');
     countdownOverlay.classList.remove('show');
-    gameActive = true;
-    restartButton.textContent = 'Restart round';
+    gameActive = matchStarted;
+    restartButton.textContent = matchStarted ? 'Restart round' : 'Start match';
+    syncSetupAction();
     document.getElementById('moveLabel').textContent = '00 MOVES';
     updateMatchUI(); updateStatusText(); renderBoard(); updateTensionEffects(); advanceTurn();
+}
+function syncSetupAction() {
+    document.getElementById('startMatch').textContent = !matchStarted ? 'Start match' : setupPaused ? 'Resume match' : 'Return to board';
+}
+function startMatch() {
+    if (matchStarted) return;
+    matchStarted = true; setupPaused = false; gameActive = true;
+    restartButton.textContent = 'Restart round';
+    syncSetupAction(); updateStatusText(); renderBoard(); updateTensionEffects(); advanceTurn();
+}
+function pauseForSetup() {
+    if (gameActive) {
+        setupPaused = true; gameActive = false; revision++;
+        clearTimeout(aiTimer); aiTimer = null;
+        stopLightning(); updateTensionEffects(); updateStatusText(); renderBoard();
+    }
+    syncSetupAction();
+}
+function resumeFromSetup() {
+    if (!setupPaused) return;
+    setupPaused = false; gameActive = true;
+    syncSetupAction(); updateStatusText(); renderBoard(); updateTensionEffects(); advanceTurn();
 }
 syncEffects();
 newMatch();
 
 window.addEventListener("resize", () => { if(state.winner) drawWinLine(state.line); });
+
+// ===== SECTION C: SETTINGS MENU EVENTS =====
+'use strict';
+const setupDialog = document.getElementById('setupDialog');
+document.getElementById('openSetup').addEventListener('click', () => { pauseForSetup(); setupDialog.showModal(); });
+document.getElementById('closeSetup').addEventListener('click', () => setupDialog.close());
+setupDialog.addEventListener('click', event => {
+  const r = setupDialog.getBoundingClientRect();
+  if (event.target === setupDialog && (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom)) setupDialog.close();
+});
+document.getElementById('impactToggle').addEventListener('change', event => {
+  impactFramesEnabled = event.target.checked;
+  clearImpactFrame();
+});
+
+setupDialog.addEventListener('close', resumeFromSetup);
+document.getElementById('startMatch').addEventListener('click', () => {
+  if (!matchStarted) startMatch();
+  setupDialog.close();
+});
