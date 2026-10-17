@@ -1,0 +1,1335 @@
+:root {
+  --bg: #0D1117;
+  --panel: #161B22;
+  --line: #232A34;
+  --text: #E6EDF3;
+  --muted: #8B949E;
+  --x: #2FB8FF;
+  --o: #FF7A45;
+  --amber: #FFC93D;
+  --danger: #FF3B3B;
+  --turn-color: var(--x);
+  --winner-color: var(--x);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Rajdhani', sans-serif;
+  background: radial-gradient(ellipse at 50% -10%, #16202c 0%, var(--bg) 55%);
+  color: var(--text);
+
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  padding: 24px 16px;
+  overflow-x: hidden;
+
+  position: relative;
+}
+
+/* Grainy obsidian texture + dark vignette, always present regardless of tension pulsing */
+.bg-texture {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+
+  background-image: var(--noise-texture);
+  background-repeat: repeat;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+
+  pointer-events: none;
+}
+
+.bg-vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+
+  background: radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.6) 100%);
+  pointer-events: none;
+}
+
+/* Whole-screen tension states, driven by how full the board is */
+body.tension-mid {
+  animation: bgPulseMid 1.8s ease-in-out infinite;
+}
+
+body.tension-high {
+  animation: bgPulseHigh 0.9s ease-in-out infinite;
+}
+
+body.tension-critical {
+  animation: bgPulseCritical 0.55s ease-in-out infinite;
+}
+
+@keyframes bgPulseCritical {
+  0%, 100% { background: radial-gradient(ellipse at 50% -15%, #431410 0%, var(--bg) 55%); }
+  50% { background: radial-gradient(ellipse at 50% -15%, #62170e 0%, var(--bg) 55%); }
+}
+
+@keyframes bgPulseMid {
+  0%, 100% { background: radial-gradient(ellipse at 50% -10%, #16202c 0%, var(--bg) 55%); }
+  50% { background: radial-gradient(ellipse at 50% -10%, #241a14 0%, var(--bg) 55%); }
+}
+
+@keyframes bgPulseHigh {
+  0%, 100% { background: radial-gradient(ellipse at 50% -15%, #2e1512 0%, var(--bg) 55%); }
+  50% { background: radial-gradient(ellipse at 50% -15%, #3d1310 0%, var(--bg) 55%); }
+}
+
+button {
+  font-family: inherit;
+  color: inherit;
+}
+
+.cut-corners {
+  clip-path: polygon(20px 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%, 0 20px);
+}
+
+.cut-corners-sm {
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+}
+
+/* ---------- Arena shell ---------- */
+
+.arena {
+  width: 100%;
+  max-width: 440px;
+
+  background: var(--panel);
+  border: 1px solid var(--line);
+
+  padding: 28px 26px 32px;
+
+  position: relative;
+  z-index: 1;
+}
+
+.arena.jolt {
+  animation: jolt 0.3s ease;
+}
+
+@keyframes jolt {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(-4px, 3px); }
+  40% { transform: translate(4px, -3px); }
+  60% { transform: translate(-3px, -2px); }
+  80% { transform: translate(3px, 2px); }
+}
+
+.arena::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(255,255,255,0.015) 0 1px, transparent 1px 28px),
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.015) 0 1px, transparent 1px 28px);
+  pointer-events: none;
+}
+
+/* ---------- Header / scoreboard ---------- */
+
+.arena-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  margin-bottom: 22px;
+}
+
+.wordmark {
+  font-weight: 700;
+  font-size: 26px;
+  letter-spacing: 1px;
+  text-align: center;
+  flex: 1;
+}
+
+.score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+
+  min-width: 64px;
+}
+
+.score-tag {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.score-value {
+  font-family: 'Space Mono', monospace;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.score--x .score-tag { color: var(--x); }
+.score--x .score-value { color: var(--x); text-shadow: 0 0 12px rgba(47,184,255,0.5); }
+.score--o .score-tag { color: var(--o); }
+.score--o .score-value { color: var(--o); text-shadow: 0 0 12px rgba(255,122,69,0.5); }
+
+/* ---------- Tension meter ---------- */
+
+.tension-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  margin-bottom: 20px;
+}
+
+.tension-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.tension-meter {
+  display: flex;
+  gap: 3px;
+  flex: 1;
+}
+
+.segment {
+  height: 12px;
+  flex: 1;
+
+  background: var(--line);
+  transform: skewX(-14deg);
+
+  transition: background 0.25s ease, box-shadow 0.25s ease;
+}
+
+.segment.lit[data-tier="low"] { background: var(--x); box-shadow: 0 0 8px rgba(47,184,255,0.6); }
+.segment.lit[data-tier="mid"] { background: var(--amber); box-shadow: 0 0 8px rgba(255,201,61,0.6); }
+.segment.lit[data-tier="high"] { background: var(--danger); box-shadow: 0 0 10px rgba(255,59,59,0.7); animation: segFlicker 0.7s ease-in-out infinite; }
+
+@keyframes segFlicker {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+.tension-meter.tier-critical {
+  animation: meterShake 0.12s ease-in-out infinite;
+  filter: drop-shadow(0 0 10px var(--danger));
+}
+
+@keyframes meterShake {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(1.5px); }
+}
+
+/* ---------- Tabs (mode + difficulty) ---------- */
+
+.tabs {
+  display: flex;
+  gap: 6px;
+
+  margin-bottom: 10px;
+}
+
+.tabs--sub {
+  margin-bottom: 22px;
+}
+
+.tab {
+  flex: 1;
+
+  background: var(--bg);
+  border: 1px solid var(--line);
+
+  padding: 10px 6px;
+
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.tab--sm {
+  padding: 7px 6px;
+  font-size: 13px;
+}
+
+.tab:hover {
+  color: var(--text);
+  border-color: #3a4453;
+}
+
+.tab.active {
+  color: var(--bg);
+  background: var(--x);
+  border-color: var(--x);
+}
+
+.tab--sm.active {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: #1a1200;
+}
+
+.tab:focus-visible,
+.cell:focus-visible,
+.restart-btn:focus-visible,
+.reset-link:focus-visible {
+  outline: 2px solid var(--x);
+  outline-offset: 2px;
+}
+
+/* ---------- Status line ---------- */
+
+.status {
+  text-align: center;
+  font-size: 17px;
+  font-weight: 600;
+
+  margin-bottom: 16px;
+
+  min-height: 22px;
+}
+
+.status.turn-x { color: var(--x); }
+.status.turn-o { color: var(--o); }
+
+/* ---------- Board ---------- */
+
+.board-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 336px;
+  margin: 0 auto 22px;
+
+  background: #0a0605;
+  transition: background 0.5s ease, box-shadow 0.4s ease;
+}
+
+body.tension-mid .board-wrap {
+  box-shadow: 0 0 18px rgba(255, 122, 69, 0.25);
+}
+
+body.tension-high .board-wrap {
+  box-shadow: 0 0 26px rgba(255, 59, 59, 0.4), 0 0 55px rgba(255, 122, 69, 0.22);
+}
+
+body.tension-critical .board-wrap {
+  box-shadow: 0 0 34px rgba(255, 59, 59, 0.6), 0 0 70px rgba(255, 122, 69, 0.4), 0 0 100px rgba(255, 201, 61, 0.2);
+  animation: boardGlowPulse 0.4s ease-in-out infinite;
+}
+
+@keyframes boardGlowPulse {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.3); }
+}
+
+.board-wrap::after {
+  content: "";
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  bottom: -12px;
+  height: 36px;
+
+  background:
+    radial-gradient(ellipse 34% 100% at 22% 100%, var(--o) 0%, transparent 75%),
+    radial-gradient(ellipse 34% 100% at 50% 100%, var(--danger) 0%, transparent 75%),
+    radial-gradient(ellipse 34% 100% at 78% 100%, var(--amber) 0%, transparent 75%);
+  opacity: 0;
+  filter: blur(11px);
+
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+  z-index: -1;
+}
+
+body.tension-mid .board-wrap::after { opacity: 0.3; }
+
+body.tension-high .board-wrap::after {
+  opacity: 0.6;
+  animation: fireGlowPulse 0.6s ease-in-out infinite;
+}
+
+body.tension-critical .board-wrap::after {
+  opacity: 0.95;
+  animation: fireGlowPulse 0.28s ease-in-out infinite;
+}
+
+@keyframes fireGlowPulse {
+  0%, 100% { opacity: 0.65; transform: scaleY(1) translateX(0); }
+  33% { opacity: 0.9; transform: scaleY(1.25) translateX(-2px); }
+  66% { opacity: 0.8; transform: scaleY(1.15) translateX(2px); }
+}
+
+/* ---------- Fissures (glow up through the tile seams + jagged crack lines) ---------- */
+
+body.tension-high .board-wrap { background: #170804; }
+body.tension-critical .board-wrap { background: #1f0a04; }
+
+/* ---------- Lava (sits BEHIND the board; shows through the 7px grid gaps) ---------- */
+
+.lava-layer {
+  position: absolute;
+  inset: -3px;
+  z-index: 0;
+
+  /* The procedural crust texture (real hot-spots + rock plates, painted once)
+     blended over an animated molten gradient. hard-light means the texture's
+     dark crust stays dark regardless of flow position, while its hot-spots
+     let the moving glow show vividly through — cracked rock with lava
+     moving underneath, not a sliding pattern. */
+  background-image: var(--lava-texture),
+    linear-gradient(115deg,
+      #4a0c02 0%, #FF3B3B 14%, #FFC93D 26%, #ffe89a 33%,
+      #FF7A45 44%, #8c1a03 56%, #FF3B3B 68%, #FFC93D 82%, #4a0c02 100%);
+  background-size: 180px 180px, 260% 260%;
+  background-repeat: repeat, no-repeat;
+  background-blend-mode: hard-light;
+
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  pointer-events: none;
+
+  animation: lavaFlow 5s linear infinite;
+}
+
+/* Only the molten gradient travels; the crust texture stays fixed */
+@keyframes lavaFlow {
+  0%   { background-position: 0 0, 0% 50%; }
+  100% { background-position: 0 0, 260% 50%; }
+}
+
+/* Lava brightens and flows faster as tension climbs */
+body.tension-mid .lava-layer { opacity: 0.35; animation-duration: 6s; }
+
+body.tension-high .lava-layer {
+  opacity: 0.7;
+  animation-duration: 3.5s;
+  filter: drop-shadow(0 0 5px var(--danger)) brightness(1.1);
+}
+
+body.tension-critical .lava-layer {
+  opacity: 1;
+  animation-duration: 1.6s;
+  filter: drop-shadow(0 0 9px var(--danger)) brightness(1.35) saturate(1.2);
+}
+
+.board {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 7px;
+
+  padding: 7px;
+  border-radius: 4px;
+
+  aspect-ratio: 1 / 1;
+}
+
+.board.turn-x { --turn-color: var(--x); }
+.board.turn-o { --turn-color: var(--o); }
+
+/* Continuous low-amplitude tremor once tension is high */
+.board.tension-high {
+  animation: tremor 0.15s ease-in-out infinite;
+}
+
+/* Stronger tremor right before the board fills up */
+.board.tension-critical {
+  animation: tremorCritical 0.09s ease-in-out infinite;
+}
+
+@keyframes tremor {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-1.5px, 1px); }
+  50% { transform: translate(1.5px, -1px); }
+  75% { transform: translate(-1px, -1.5px); }
+}
+
+@keyframes tremorCritical {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-3px, 2px); }
+  50% { transform: translate(3px, -2px); }
+  75% { transform: translate(-2.5px, -3px); }
+}
+
+.cell {
+  position: relative;
+
+  /* Slate tile: subtle top-lit gradient + inner bevel for real depth */
+  background: linear-gradient(160deg, #1a2029 0%, #12171e 45%, #0b0f14 100%);
+  border: 1px solid #28323f;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    inset 0 -2px 6px rgba(0, 0, 0, 0.6);
+
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.12s ease;
+}
+
+.cell:hover:not(:disabled) {
+  background: linear-gradient(160deg, #222c38 0%, #18202a 45%, #0e141a 100%);
+  border-color: var(--turn-color);
+  transform: translateY(-1px);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 0 18px color-mix(in srgb, var(--turn-color) 22%, transparent),
+    0 4px 14px rgba(0, 0, 0, 0.5);
+}
+
+.cell:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.cell:disabled {
+  cursor: not-allowed;
+}
+
+.mark-svg {
+  width: 58%;
+  height: 58%;
+}
+
+.stroke {
+  fill: none;
+  stroke-width: 10;
+  stroke-linecap: round;
+  stroke-dasharray: 130;
+  stroke-dashoffset: 130;
+  animation: drawStroke 0.28s ease forwards;
+}
+
+.stroke-2 { animation-delay: 0.12s; }
+.stroke-o { stroke-dasharray: 210; stroke-dashoffset: 210; }
+
+.mark-x .stroke { stroke: var(--x); filter: drop-shadow(0 0 6px rgba(47,184,255,0.6)); }
+.mark-o .stroke { stroke: var(--o); filter: drop-shadow(0 0 6px rgba(255,122,69,0.6)); }
+
+@keyframes drawStroke {
+  to { stroke-dashoffset: 0; }
+}
+
+.cell.winning {
+  box-shadow: inset 0 0 0 2px var(--winner-color);
+}
+
+.win-line-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+#winLine {
+  stroke: var(--winner-color);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  filter: drop-shadow(0 0 6px var(--winner-color));
+}
+
+#winLine.drawn {
+  animation: drawLine 0.35s ease forwards;
+}
+
+@keyframes drawLine {
+  to { stroke-dashoffset: 0; }
+}
+
+.board.shake {
+  animation: shake 0.4s ease;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-7px); }
+  40% { transform: translateX(7px); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(5px); }
+}
+
+/* ---------- Embers (rise from below the board as tension builds) ---------- */
+
+.embers {
+  position: absolute;
+  left: -4%;
+  right: -4%;
+  bottom: -6px;
+  height: 56px;
+
+  overflow: visible;
+  pointer-events: none;
+}
+
+.ember {
+  position: absolute;
+  bottom: 0;
+  left: var(--left);
+
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+
+  filter: blur(0.4px);
+  opacity: 0;
+
+  animation-name: emberRise;
+  animation-timing-function: ease-out;
+  animation-iteration-count: infinite;
+  animation-duration: var(--dur);
+  animation-delay: var(--delay);
+  animation-play-state: paused;
+}
+
+@keyframes emberRise {
+  0% { transform: translateY(0) scale(1); opacity: 0; }
+  15% { opacity: 0.9; }
+  100% { transform: translateY(-62px) scale(0.25); opacity: 0; }
+}
+
+.embers.tier-mid .ember:nth-child(-n+7) {
+  animation-play-state: running;
+}
+
+.embers.tier-high .ember {
+  animation-play-state: running;
+  animation-duration: calc(var(--dur) * 0.55);
+}
+
+.embers.tier-high {
+  filter: brightness(1.25) saturate(1.15);
+}
+
+.embers.tier-critical .ember {
+  animation-play-state: running;
+  animation-duration: calc(var(--dur) * 0.32);
+}
+
+.embers.tier-critical {
+  filter: brightness(1.6) saturate(1.35);
+}
+
+/* ---------- Smoke (drifts up alongside the embers at higher tension) ---------- */
+
+.smoke {
+  position: absolute;
+  left: -6%;
+  right: -6%;
+  bottom: -4px;
+  height: 100px;
+
+  overflow: visible;
+  pointer-events: none;
+}
+
+.puff {
+  position: absolute;
+  bottom: 0;
+  left: var(--left);
+
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+
+  background: rgba(170, 170, 178, 0.55);
+  filter: blur(4px);
+  opacity: 0;
+
+  animation-name: smokeRise;
+  animation-timing-function: ease-out;
+  animation-iteration-count: infinite;
+  animation-duration: var(--dur);
+  animation-delay: var(--delay);
+  animation-play-state: paused;
+}
+
+@keyframes smokeRise {
+  0% { transform: translate(0, 0) scale(0.6); opacity: 0; }
+  20% { opacity: 0.32; }
+  100% { transform: translate(var(--drift), -96px) scale(1.5); opacity: 0; }
+}
+
+.smoke.tier-high .puff:nth-child(-n+5) {
+  animation-play-state: running;
+}
+
+.smoke.tier-critical .puff {
+  animation-play-state: running;
+  animation-duration: calc(var(--dur) * 0.75);
+}
+
+.smoke.tier-critical {
+  filter: brightness(0.85);
+}
+
+/* ---------- Actions ---------- */
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.restart-btn {
+  width: 100%;
+
+  padding: 13px;
+
+  background: var(--o);
+  border: none;
+
+  font-size: 16px;
+  font-weight: 700;
+  color: #1a0e05;
+
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.restart-btn:hover {
+  filter: brightness(1.1);
+}
+
+.reset-link {
+  background: none;
+  border: none;
+
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+
+  cursor: pointer;
+}
+
+.reset-link:hover {
+  color: var(--text);
+}
+
+/* ---------- Win effects layer ---------- */
+
+#fx {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 999;
+}
+
+.fx-flash {
+  position: absolute;
+  inset: 0;
+  background: var(--winner-color);
+  opacity: 0;
+}
+
+.fx-flash.play {
+  animation: flashPop 0.5s ease forwards;
+}
+
+@keyframes flashPop {
+  0% { opacity: 0; }
+  15% { opacity: 0.28; }
+  100% { opacity: 0; }
+}
+
+/* Ambient flash — deliberately dim and blue-tinted so the white bolt stays readable on top */
+.lightning {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 30%, rgba(160, 215, 255, 0.55) 0%, rgba(47, 184, 255, 0.15) 60%, transparent 100%);
+  opacity: 0;
+}
+
+.lightning.strike {
+  animation: lightningFlash 0.5s steps(1, end);
+}
+
+@keyframes lightningFlash {
+  0% { opacity: 0; }
+  8% { opacity: 0.32; }
+  16% { opacity: 0.05; }
+  26% { opacity: 0.24; }
+  38% { opacity: 0; }
+  100% { opacity: 0; }
+}
+
+/* The actual bolt shape, drawn fresh each strike and aimed at a real board cell */
+.bolt {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.bolt-outline {
+  fill: none;
+  stroke: #2FB8FF;
+  stroke-width: 18;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+
+  filter: blur(9px);
+  opacity: 0;
+}
+
+.bolt-main {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 3.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+
+  filter:
+    drop-shadow(0 0 3px #ffffff)
+    drop-shadow(0 0 9px #9fe3ff)
+    drop-shadow(0 0 26px #2FB8FF);
+  opacity: 0;
+}
+
+.bolt-branch {
+  fill: none;
+  stroke: #dff4ff;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+
+  filter: drop-shadow(0 0 3px #ffffff) drop-shadow(0 0 10px #2FB8FF);
+  opacity: 0;
+}
+
+.bolt.strike .bolt-main {
+  animation: boltFlicker 0.75s ease-out forwards;
+}
+
+.bolt.strike .bolt-outline {
+  animation: boltFlicker 0.75s ease-out forwards;
+}
+
+.bolt.strike .bolt-branch {
+  animation: branchFlicker 0.6s ease-out forwards;
+  animation-delay: 0.03s;
+}
+
+@keyframes boltFlicker {
+  0% { opacity: 0; }
+  4% { opacity: 1; }
+  14% { opacity: 0.45; }
+  20% { opacity: 1; }
+  32% { opacity: 0.4; }
+  42% { opacity: 1; }
+  58% { opacity: 0.5; }
+  72% { opacity: 0.8; }
+  100% { opacity: 0; }
+}
+
+@keyframes branchFlicker {
+  0% { opacity: 0; }
+  8% { opacity: 1; }
+  26% { opacity: 0.3; }
+  40% { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+
+/* ---------- Cell layers: cracks sit under the mark and persist ---------- */
+
+.mark-slot,
+.crack-slot {
+  position: absolute;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  pointer-events: none;
+}
+
+.mark-slot { z-index: 2; }
+.crack-slot { z-index: 1; }
+
+.crack-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.crack-underglow {
+  fill: none;
+  stroke: #2FB8FF;
+  stroke-width: 5.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+
+  opacity: 0.32;
+  filter: blur(2.5px); /* static — never animated, so this is a one-time paint cost */
+
+  animation: crackGlowPulse 2.6s ease-in-out infinite;
+}
+
+@keyframes crackGlowPulse {
+  0%, 100% { opacity: 0.24; }
+  50% { opacity: 0.42; }
+}
+
+.crack-line {
+  fill: none;
+  stroke: #050810;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.crack-node {
+  fill: #bfeaff;
+  filter: drop-shadow(0 0 3px #2FB8FF);
+  opacity: 0.75;
+}
+
+/* Bright dashes that travel outward along each fracture */
+.crack-spark {
+  fill: none;
+  stroke: #9fe3ff;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+
+  stroke-dasharray: 5 26;
+  opacity: 0.85;
+
+  animation: sparkRun 1.5s linear infinite;
+}
+
+@keyframes sparkRun {
+  0%   { stroke-dashoffset: 31; opacity: 0; }
+  15%  { opacity: 0.95; }
+  75%  { opacity: 0.6; }
+  100% { stroke-dashoffset: 0; opacity: 0; }
+}
+
+/* Struck cells stay visibly damaged for the rest of the round */
+.cell.cracked {
+  background:
+    radial-gradient(circle at var(--impact-x, 50%) var(--impact-y, 50%),
+      rgba(47, 184, 255, 0.10) 0%, transparent 55%),
+    #080b10;
+  border-color: #2c3a4a;
+}
+
+/* Electricity crawling over a freshly struck cell.
+   Animates stroke + opacity only — animating `filter` forces a full
+   re-rasterization every frame and was a major source of frame drops. */
+.cell.electrified .crack-line {
+  animation: crackCharge 0.85s ease-out;
+}
+
+@keyframes crackCharge {
+  0%   { stroke: #ffffff; }
+  30%  { stroke: #bfeaff; }
+  55%  { stroke: #7fd4ff; }
+  100% { stroke: #04060a; }
+}
+
+.cell.electrified .crack-spark {
+  animation: sparkRun 0.32s linear 3;
+  stroke: #ffffff;
+}
+
+/* Arc ring snapping outward from the point of impact */
+.cell.electrified::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+
+  border: 2px solid #bfeaff;
+  border-radius: 50%;
+
+  animation: arcRing 0.55s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes arcRing {
+  0%   { transform: scale(0.15); opacity: 1; border-color: #ffffff; }
+  60%  { opacity: 0.55; border-color: #bfeaff; }
+  100% { transform: scale(1.25); opacity: 0; border-color: #2FB8FF; }
+}
+
+/* Impact flash — centred on the exact point the bolt fractured */
+.cell.scorched::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: radial-gradient(circle at var(--impact-x, 50%) var(--impact-y, 50%),
+    #ffffff 0%,
+    rgba(255, 246, 214, 0.92) 12%,
+    rgba(255, 201, 61, 0.7) 26%,
+    rgba(160, 215, 255, 0.35) 45%,
+    transparent 68%);
+  animation: scorchFlash 0.45s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes scorchFlash {
+  0%   { opacity: 1; transform: scale(0.85); }
+  100% { opacity: 0; transform: scale(1.15); }
+}
+
+/* Canvas the "X WINS" / "DRAW" text is drawn into, then pixel-dissolved */
+.fx-stamp {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(1.6) rotate(-4deg);
+}
+
+.fx-stamp.play {
+  animation: stampIn 0.5s cubic-bezier(.2,1.4,.4,1) forwards;
+}
+
+@keyframes stampIn {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(1.8) rotate(-4deg); }
+  60% { opacity: 1; transform: translate(-50%, -50%) scale(0.92) rotate(-4deg); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(-4deg); }
+}
+
+.spark {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  background: var(--winner-color);
+  top: var(--sy);
+  left: var(--sx);
+  transform: translate(-50%, -50%) rotate(45deg);
+  animation: sparkBurst 0.7s ease-out forwards;
+}
+
+@keyframes sparkBurst {
+  0% { transform: translate(-50%, -50%) rotate(45deg) translate(0, 0); opacity: 1; }
+  100% { transform: translate(-50%, -50%) rotate(45deg) translate(var(--tx), var(--ty)); opacity: 0; }
+}
+
+/* ---------- Pre-round countdown ---------- */
+
+.countdown-overlay {
+  position: fixed;
+  inset: 0;
+
+  background: rgba(13, 17, 23, 0.88);
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+
+  z-index: 1000;
+}
+
+.countdown-overlay.show {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.countdown-number {
+  font-size: 110px;
+  font-weight: 700;
+  color: var(--x);
+  text-shadow: 0 0 40px rgba(47, 184, 255, 0.7);
+  line-height: 1;
+}
+
+.countdown-number.pulse {
+  animation: countdownPulse 0.55s cubic-bezier(.2, 1.7, .4, 1);
+}
+
+@keyframes countdownPulse {
+  0% { transform: scale(0.35); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.countdown-caption {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 420px) {
+  .wordmark { font-size: 22px; }
+  .score-value { font-size: 22px; }
+}
+
+/* ---------- Reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  body.tension-mid, body.tension-high, body.tension-critical { animation: none; }
+  .segment.lit[data-tier="high"] { animation: none; }
+  .tension-meter.tier-critical { animation: none; }
+  .board.shake, .board.tension-high, .board.tension-critical { animation: none; }
+  .arena.jolt { animation: none; }
+  .lightning.strike { animation: none; opacity: 0; }
+  .bolt.strike .bolt-main, .bolt.strike .bolt-branch, .bolt.strike .bolt-outline { animation: none; opacity: 0; }
+  .cell.scorched::before { animation: none; opacity: 0; }
+  .cell.electrified .crack-line { animation: none; }
+  .cell.electrified .crack-spark { animation: none; }
+  .crack-spark { animation: none; opacity: 0.4; }
+  .crack-underglow { animation: none; opacity: 0.3; }
+  .cell.electrified::after { animation: none; opacity: 0; }
+  .board-wrap::after { animation: none; }
+  .board-wrap { animation: none !important; }
+  .lava-layer { animation: none; }
+  .ember { animation: none; opacity: 0; }
+  .puff { animation: none; opacity: 0; }
+  .stroke { animation-duration: 0.01s; }
+  #winLine.drawn { animation-duration: 0.01s; }
+  .fx-stamp.play { animation-duration: 0.01s; }
+  .spark { animation: none; display: none; }
+  .countdown-number.pulse { animation-duration: 0.01s; }
+}
+
+/* ---------- Duel edition: quieter lighting, clear hierarchy ---------- */
+:root { color-scheme: dark; --muted: #9aa9b8; --line: #293743; }
+body { background: radial-gradient(ellipse at 18% 35%,#102333 0,transparent 48%),radial-gradient(ellipse at 90% 80%,#291a16 0,transparent 45%),#090f15; padding: 36px 22px; min-height: 100svh; }
+body.tension-mid,body.tension-high,body.tension-critical { animation: none; }
+button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+button:focus-visible,summary:focus-visible { outline: 2px solid #c4edff; outline-offset: 3px; }
+[hidden] { display: none !important; }
+.arena { max-width: 940px; padding: 32px 36px 0; display: grid; grid-template-columns: 270px minmax(0,1fr); column-gap: 44px; background: linear-gradient(135deg,rgba(23,33,43,.98),rgba(12,19,26,.98)); border-color: #30404d; }
+.arena::before { opacity: .3; }
+.arena > * { position: relative; }
+.arena-header { grid-column: 1/-1; margin-bottom: 28px; padding-bottom: 26px; border-bottom: 1px solid var(--line); }
+.eyebrow,.field-label,.note-index,.round-heading,.tension-label,#moveLabel,.arena-footer { font-family: 'Space Mono',monospace; font-size: 10px; font-weight: 700; letter-spacing: 1.2px; }
+.eyebrow { color: var(--muted); font-size: 9px; }
+.wordmark { text-align: left; font-size: 42px; letter-spacing: 1px; line-height: 1.2; margin-top: 5px; }
+.wordmark > span:not(.brand-dot) { font-weight: 500; color: #b8c6d1; }
+.wordmark .brand-dot { color: var(--o); }
+.match-score { display: flex; gap: 18px; align-items: center; }
+.score { min-width: 64px; gap: 7px; }
+.score-tag { font-size: 11px; letter-spacing: 1.2px; }
+.score-value { font-size: 31px; }
+.score-divider { font-size: 25px; color: #526371; }
+.score-pips { display: flex; gap: 5px; }
+.score-pips i { display: block; width: 12px; height: 3px; background: #34414c; }
+.score--x .filled { background: var(--x); box-shadow: 0 0 8px #2fb8ff55; }
+.score--o .filled { background: var(--o); box-shadow: 0 0 8px #ff7a4555; }
+.setup { padding: 2px 0 28px; }
+.section-heading { display:flex; align-items:center; justify-content:space-between; margin-bottom:25px; }
+.live-dot { width:5px; height:5px; background:var(--x); box-shadow:0 0 9px #2fb8ff77; border-radius:50%; }
+.field-label { color:var(--muted); margin-bottom:9px; font-size:9px; }
+.tabs { gap:4px; margin-bottom:21px; }
+.tab { font-size:13px; padding:11px 3px; min-height:42px; color:#a7b6c4; background:#101820; border-color:#2b3945; border-radius:3px; }
+.tab.active { background:#163347; color:#aee5ff; border-color:#3881a8; box-shadow:inset 0 -2px 0 var(--x); }
+.tab--sm.active { background:#352b18; color:#f8d878; border-color:#776136; box-shadow:inset 0 -2px 0 var(--amber); }
+.rule-options { display:grid; gap:8px; }
+.rule-card { display:flex; align-items:center; gap:12px; padding:14px 12px; text-align:left; width:100%; border:1px solid #2b3945; border-radius:4px; background:#0f171f; cursor:pointer; }
+.rule-card strong { display:block; font-size:17px; font-weight:600; }
+.rule-card small { display:block; color:var(--muted); font-size:12px; margin-top:2px; }
+.rule-card:hover { border-color:#638294; }
+.rule-card.active { border-color:#327296; background:linear-gradient(100deg,#142b3b,#111d27); }
+.rule-icon { color:#8193a3; font-size:29px; font-weight:500; width:25px; text-align:center; }
+.rule-card.active .rule-icon { color:var(--x); }
+.radio-dot { flex-shrink:0; margin-left:auto; height:11px; width:11px; border:1px solid #526373; border-radius:50%; }
+.active .radio-dot { background:var(--x); border:3px solid #153447; box-shadow:0 0 0 1px #489bc4; }
+.rule-note { margin:19px 0; padding-left:12px; border-left:2px solid #354653; }
+.note-index { font-size:8px; color:#b0c0cd; }
+.rule-note p { font-size:14px; line-height:1.5; color:#b4c1cc; margin-top:7px; }
+.rule-note .setting-note { font-size:12px; color:#8fa0ae; margin-top:9px; }
+.preferences { display:flex; gap:8px; }
+.utility-button { flex:1; min-height:40px; border:1px solid #2b3945; background:#101820; padding:8px; border-radius:3px; color:#9dacb9; font-size:13px; cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:5px; }
+.utility-button span { font-family:monospace; font-size:9px; color:#ccd7df; }
+.utility-button[aria-pressed=true] span { color:var(--x); }
+.more-rules { margin-top:18px; color:var(--muted); font-size:13px; line-height:1.5; }
+.more-rules summary { cursor:pointer; min-height:28px; }
+.more-rules p { margin:9px 0; }
+.play-area { min-width:0; padding:0 0 25px 30px; border-left:1px solid var(--line); }
+.round-heading { display:flex; justify-content:space-between; gap:8px; color:#bbcad6; font-size:9px; letter-spacing:1px; }
+.format-label { color:#8f9fac; font-size:8px; }
+.format-label span { color:var(--o); margin-left:6px; font-size:8px; }
+.status-block { padding:19px 0 17px; min-height:90px; }
+.status { font-size:27px; text-align:left; line-height:1.15; margin:0 0 5px; letter-spacing:.2px; }
+.turn-hint { color:var(--muted); font-size:13px; line-height:1.35; min-height:18px; }
+.board-wrap { max-width:360px; margin:0 auto 22px; background:#26313b; border-radius:5px; isolation:isolate; }
+.board { padding:6px; gap:6px; }
+.board.tension-high,.board.tension-critical,.arena.jolt,.board.shake { animation:none; }
+.cell { min-width:0; border-radius:2px; background:linear-gradient(145deg,#1b2935,#101923 80%); border-color:#30404e; }
+.cell[aria-disabled=true] { cursor:default; }
+.cell:hover:not(:disabled) { transform:none; }
+.cell[aria-disabled=true]:hover { background:linear-gradient(145deg,#1b2935,#101923 80%); border-color:#30404e; box-shadow:inset 0 1px 0 #ffffff12,inset 0 -2px 6px #0009; }
+.cell:focus-visible { outline:none; border-color:#e2f4ff !important; box-shadow:inset 0 0 0 2px #e2f4ff !important; }
+.cell.mark-x { background:linear-gradient(140deg,#172e3e,#101b25); }
+.cell.mark-o { background:linear-gradient(140deg,#30241f,#191b20); }
+.mark-svg { width:53%; height:53%; }
+.stroke { stroke-width:8; }
+.mark-x .stroke { filter:drop-shadow(0 0 3px #2fb8ff70); }
+.mark-o .stroke { filter:drop-shadow(0 0 3px #ff7a4570); }
+.cell.last-move:not(.expiring)::before { content:''; position:absolute; bottom:7px; width:4px; height:4px; background:currentColor; border-radius:50%; color:#a6b7c4; }
+.cell.expiring .mark-slot { opacity:.55; }
+.cell.expiring::after { content:'NEXT OUT'; position:absolute; bottom:7px; left:0; right:0; font-family:monospace; font-size:8px; letter-spacing:1px; text-align:center; color:#d5dfe6; z-index:4; }
+.cell.vanished { animation:tileRelease .5s ease-out; }
+@keyframes tileRelease { from { box-shadow:inset 0 0 30px #b3d8f344; } to { box-shadow:inset 0 0 0 #b3d8f300; } }
+.cell.winning { border-color:var(--winner-color); box-shadow:inset 0 0 24px color-mix(in srgb,var(--winner-color) 16%,transparent); }
+.win-line-svg { z-index:5; }
+#winLine { stroke-width:1.5; opacity:.85; filter:drop-shadow(0 0 3px var(--winner-color)); }
+body.tension-mid .board-wrap { box-shadow:0 0 20px #ff7a4512; }
+body.tension-high .board-wrap { box-shadow:0 0 28px #ff7a4522; }
+body.tension-critical .board-wrap { box-shadow:0 0 35px #ff7a452b; animation:none; }
+body .board-wrap::after { animation:none !important; opacity:.2 !important; }
+body:not(.vivid-effects) .lava-layer { opacity:.2; animation-duration:12s; filter:none; }
+body:not(.vivid-effects) .ember,body:not(.vivid-effects) .puff { animation:none; opacity:0; }
+body:not(.vivid-effects) .fx-flash { display:none; }
+body.vivid-effects .fx-flash.play { animation:softFlash .6s ease-out; }
+@keyframes softFlash { 0%,100% { opacity:0; } 20% { opacity:.07; } }
+.tension-row { max-width:360px; margin:0 auto 19px; gap:12px; }
+.tension-label,#moveLabel { font-size:8px; letter-spacing:.8px; color:#91a2b0; white-space:nowrap; }
+.segment { height:5px; transform:skewX(-20deg); }
+.segment.lit { box-shadow:none !important; animation:none !important; }
+.tension-meter.tier-critical { animation:none; filter:none; }
+.actions { flex-direction:row; gap:12px; max-width:360px; margin:auto; }
+.restart-btn { flex:1; font-size:15px; min-height:45px; background:#eeb08b; color:#231910; padding:11px; }
+.reset-link { min-height:44px; font-size:12px; padding:0 3px; white-space:nowrap; color:#a9bac7; }
+.history-row { display:flex; align-items:center; gap:14px; margin:22px auto 0; max-width:360px; min-height:24px; }
+.history-row .field-label { margin:0; flex-shrink:0; font-size:8px; }
+#roundHistory { list-style:none; display:flex; gap:5px; overflow-x:auto; min-width:0; padding:3px 1px; scrollbar-width:thin; }
+#roundHistory li:not(.history-empty) { flex-shrink:0; width:23px; height:23px; display:grid; place-items:center; border:1px solid #35424f; border-radius:3px; font-family:monospace; font-size:11px; }
+.result-x { color:var(--x); background:#142b3a; }.result-o { color:var(--o); background:#30231e; }.result-draw { color:var(--muted); }
+.history-empty { color:#889ba9; font-size:12px; white-space:nowrap; }
+.arena-footer { grid-column:1/-1; display:flex; justify-content:space-between; gap:12px; border-top:1px solid var(--line); padding:15px 0; font-size:8px; color:#7d919f; letter-spacing:1px; }
+.fx-stamp { top:38%; }
+@media (max-width:760px) {
+  body { padding:18px 12px; align-items:flex-start; }
+  .arena { max-width:480px; display:flex; flex-direction:column; padding:23px 21px 0; }
+  .arena-header { margin-bottom:20px; padding-bottom:20px; }
+  .wordmark { font-size:30px; }.brand .eyebrow { font-size:7px; letter-spacing:.7px; }
+  .match-score { gap:8px; }.score { min-width:43px; }.score-value { font-size:25px; }.score-tag { font-size:9px; }.score-pips i { width:9px; }
+  .setup { padding-bottom:19px; }.section-heading { margin-bottom:16px; }
+  .tabs { margin-bottom:15px; }.rule-options { grid-template-columns:1fr 1fr; gap:6px; }
+  .rule-card { padding:11px 9px; gap:7px; }.rule-card strong { font-size:15px; }.rule-card small { font-size:11px; }.rule-icon { display:none; }
+  .radio-dot { height:9px; width:9px; }.active .radio-dot { border-width:2px; }
+  .rule-note { margin:14px 0; }.rule-note p { font-size:13px; }.rule-note .setting-note { font-size:11px; }
+  .more-rules { margin-top:12px; }.play-area { border-left:0; border-top:1px solid var(--line); padding:19px 0 24px; }
+  .status-block { min-height:87px; }.status { font-size:26px; }
+  .arena-footer { font-size:7px; letter-spacing:.5px; }
+}
+@media (max-width:360px) { .arena { padding:19px 14px 0; }.wordmark { font-size:26px; }.brand .eyebrow { font-size:6px; }.match-score { gap:4px; }.rule-card strong { font-size:13px; }.rule-card small { font-size:10px; }.turn-hint { font-size:12px; }.cell.expiring::after { font-size:7px; bottom:5px; } }
+@media (prefers-reduced-motion:reduce) {
+  *,*::before,*::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition:none !important; scroll-behavior:auto !important; }
+  .stroke { stroke-dashoffset:0; }#winLine.drawn { stroke-dashoffset:0; }
+  .fx-flash,.fx-stamp,.spark,.embers,.smoke,.bolt,.lightning { display:none !important; }
+  .cell.vanished { animation:none; }
+}
+
+body:not(.vivid-effects) .lava-layer { opacity:0; }
+body.tension-mid:not(.vivid-effects) .lava-layer { opacity:.16; }
+body.tension-high:not(.vivid-effects) .lava-layer { opacity:.24; }
+body.tension-critical:not(.vivid-effects) .lava-layer { opacity:.34; }
+@media(max-width:760px) { .arena-header {order:0;} .play-area {order:1; border-top:0; padding-top:0;} .setup {order:2; border-top:1px solid var(--line); padding-top:21px;} .arena-footer {order:3;} }
+
+.cell.expiring::after { border:0; border-radius:0; transform:none; animation:none; inset:auto 0 7px; height:auto; }
+@media(max-width:760px) { .arena-header {gap:8px;} .wordmark {font-size:25px; white-space:nowrap;} .match-score {flex-shrink:0; gap:7px;} .score-tag {white-space:nowrap; font-size:8px; letter-spacing:.7px;} .score {min-width:40px;} }
+@media(max-width:360px) { .wordmark {font-size:22px;} .match-score {gap:4px;} .score {min-width:36px;} .score-tag {font-size:7px;} }
+
+/* ---------- Storm effects: Vivid / Extreme ---------- */
+.effect-choice { cursor:default; }
+.effect-choice select { width:79px; max-width:100%; padding:5px 0 5px 3px; border:0; background:#101820; color:#bde9ff; font:600 12px 'Rajdhani',sans-serif; cursor:pointer; }
+.effect-choice select:focus-visible { outline:2px solid var(--x); outline-offset:2px; }
+.motion-note { margin-top:10px; font-size:12px; line-height:1.4; color:var(--muted); }
+.surge-layer { position:absolute; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none; z-index:7; }
+.surge-burst { animation:surgeEnvelope .72s ease-out both; }
+.surge-halo,.surge-core { fill:none; stroke-linecap:round; stroke-linejoin:round; }
+.surge-halo { stroke:#25abff; stroke-width:7; opacity:.7; filter:blur(3px); }
+.surge-core { stroke:#d2f8ff; stroke-width:1.45; stroke-dasharray:180; stroke-dashoffset:180; animation:surgeLaunch .55s ease-out forwards; filter:drop-shadow(0 0 2px #64dbff); }
+.surge-root { fill:none; stroke:#b3f3ff; stroke-width:1.2; animation:ventRing .6s ease-out forwards; }
+.surge-particle { fill:#e4fbff; filter:drop-shadow(0 0 3px #39baff); animation:surgeScatter .7s cubic-bezier(.1,.6,.4,1) forwards; }
+.extreme-effects .surge-core { stroke:#efffff; stroke-width:1.9; }
+.extreme-effects .surge-halo { stroke-width:10; opacity:.85; }
+@keyframes surgeEnvelope { 0%{opacity:0} 8%{opacity:1} 30%{opacity:.85} 65%{opacity:.6} 100%{opacity:0} }
+@keyframes surgeLaunch { 0%{stroke-dashoffset:180} 28%{stroke-dashoffset:0} 100%{stroke-dashoffset:-90} }
+@keyframes ventRing { from{opacity:.95;transform:scale(.3)} to{opacity:0;transform:scale(2.2)} }
+@keyframes surgeScatter { 0%{opacity:0;transform:translate(0,0)} 12%{opacity:1} 100%{opacity:0;transform:translate(var(--dx),var(--dy))} }
+body.vivid-effects .crack-underglow { stroke:#21b9ff; stroke-width:5; opacity:.65; }
+body.vivid-effects .crack-line { stroke:#9ae8ff; stroke-width:.75; opacity:.85; }
+body.vivid-effects .crack-spark { opacity:.4; stroke-width:.7; }
+body.vivid-effects .crack-node { fill:#e0faff; }
+body.vivid-effects .cell.cracked { background:radial-gradient(ellipse at var(--impact-x) var(--impact-y),#18425166,transparent 67%),linear-gradient(145deg,#142735,#0c151f); border-color:#3e6379; }
+body.vivid-effects .crack-slot { opacity:.9; }
+/* Magma stays below the tiles; turbulent plumes appear only in the seams. */
+body.vivid-effects .lava-layer { overflow:hidden; border-radius:5px; background-size:180px 180px,320% 320%; }
+body.vivid-effects .lava-layer::before { content:''; position:absolute; inset:-40%; background:radial-gradient(ellipse at 20% 70%,#fff1ad 0, #ffbd34 2%,#ff4b0c77 9%,transparent 23%),radial-gradient(ellipse at 72% 32%,#ffeeb3 0,#ff982b 3%,#e5330b99 10%,transparent 24%),radial-gradient(ellipse at 55% 80%,#ffad33 0,#ff4c14 5%,transparent 19%); mix-blend-mode:screen; opacity:.75; animation:magmaConvection 6s ease-in-out infinite alternate; }
+body.vivid-effects .lava-layer::after { content:''; position:absolute; inset:-25%; background:radial-gradient(circle at 24% 50%,#fff2aa 0 1px,transparent 3px),radial-gradient(circle at 60% 30%,#ffd362 0 2px,transparent 4px),radial-gradient(circle at 42% 80%,#fff2aa 0 1px,transparent 3px),radial-gradient(circle at 80% 65%,#ffec9a 0 2px,transparent 4px); background-size:64px 91px; opacity:.65; animation:magmaRise 3.5s linear infinite; }
+@keyframes magmaConvection { 0%{transform:translate(-8%,5%) rotate(-8deg) scale(.9)} 100%{transform:translate(8%,-7%) rotate(9deg) scale(1.15)} }
+@keyframes magmaRise { from{transform:translateY(18px)} to{transform:translateY(-73px)} }
+body.vivid-effects.tension-mid .lava-layer { opacity:.45; filter:drop-shadow(0 0 3px #ff6518); }
+body.vivid-effects.tension-high .lava-layer { opacity:.8; filter:drop-shadow(0 0 6px #ff6518); }
+body.vivid-effects.tension-critical .lava-layer { opacity:.95; filter:drop-shadow(0 0 8px #ff741f); animation-duration:3s; }
+body.extreme-effects .lava-layer::before { animation-duration:2.4s; opacity:1; }
+body.extreme-effects .lava-layer::after { animation-duration:1.5s; opacity:.95; }
+body.extreme-effects.tension-high .lava-layer,body.extreme-effects.tension-critical .lava-layer { filter:drop-shadow(0 0 11px #ff701c) saturate(1.25); }
+body.extreme-effects.tension-critical .board-wrap { box-shadow:0 0 25px #ff6b2755,0 0 65px #ff411f33; }
+/* The whole board, including its electrical overlay, moves as one surface. */
+body.vivid-effects.tension-high .board-wrap { animation:duelTremor .3s linear infinite; }
+body.vivid-effects.tension-critical .board-wrap { animation:duelTremor .19s linear infinite; --shake-size:1.5px; }
+body.extreme-effects.tension-mid .board-wrap { animation:duelTremor .4s linear infinite; --shake-size:.6px; }
+body.extreme-effects.tension-high .board-wrap { animation:duelTremor .18s linear infinite; --shake-size:2px; }
+body.extreme-effects.tension-critical .board-wrap { animation:duelTremor .13s linear infinite; --shake-size:3px; }
+@keyframes duelTremor { 0%,100%{transform:translate(0,0)} 20%{transform:translate(calc(var(--shake-size,1px)*-1),var(--shake-size,1px))} 45%{transform:translate(var(--shake-size,1px),calc(var(--shake-size,1px)*-.65))} 70%{transform:translate(calc(var(--shake-size,1px)*-.6),calc(var(--shake-size,1px)*-.75))} }
+body.vivid-effects .arena.jolt { animation:stormImpact .28s ease-out; }
+body.extreme-effects .arena.jolt { --impact-size:4px; }
+@keyframes stormImpact { 0%,100%{transform:translate(0,0)} 20%{transform:translate(var(--impact-size,2px),calc(var(--impact-size,2px)*.6))} 50%{transform:translate(calc(var(--impact-size,2px)*-.75),calc(var(--impact-size,2px)*-.5))} 75%{transform:translate(calc(var(--impact-size,2px)*.3),0)} }
+body.vivid-effects .bolt-main { stroke-width:2.8; filter:drop-shadow(0 0 3px #fff) drop-shadow(0 0 9px #69d8ff); }
+body.extreme-effects .bolt-main { stroke-width:4; filter:drop-shadow(0 0 4px #fff) drop-shadow(0 0 15px #42c8ff); }
+body.extreme-effects .bolt-outline { stroke-width:25; }
+body.vivid-effects .bolt.strike .bolt-main,body.vivid-effects .bolt.strike .bolt-outline { animation:stormBolt .65s ease-out forwards; }
+body.vivid-effects .bolt.strike .bolt-branch { animation:stormBolt .5s ease-out forwards; }
+@keyframes stormBolt { 0%{opacity:0} 7%{opacity:1} 25%{opacity:.7} 55%{opacity:.4} 100%{opacity:0} }
+body.vivid-effects .lightning.strike { animation:stormAmbient .6s ease-out; }
+@keyframes stormAmbient { 0%,100%{opacity:0} 14%{opacity:.18} }
+body.extreme-effects .embers.tier-critical .ember { width:5px; height:5px; }
+body.extreme-effects .smoke.tier-critical { opacity:.65; }
+body:not(.vivid-effects) .surge-layer { display:none; }
+body:not(.vivid-effects) .board-wrap,body:not(.vivid-effects) .arena { animation:none; }
+body.effects-paused *,body.effects-paused *::before,body.effects-paused *::after { animation-play-state:paused !important; }
+@media(prefers-reduced-motion:reduce) {
+  body.vivid-effects .board-wrap,body.extreme-effects .board-wrap,body .arena.jolt { animation:none !important; transform:none !important; }
+  .surge-layer { display:none !important; }
+  .lava-layer::before,.lava-layer::after { animation:none !important; }
+}
+
+/* The new vent eruptions replace the old full-tile electrical rings. */
+.cell.electrified:not(.expiring)::after { display:none; }
