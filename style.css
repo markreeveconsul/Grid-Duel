@@ -1946,3 +1946,34 @@ body.vivid-effects:not(.reduced-motion) .arena-header .header-pulse{animation:he
 .cyber-interface .arena-header .cyber-game-brand,.cyber-interface .arena-header .cyber-header-actions{position:relative;z-index:1}
 .cyber-interface .arena-header .cyber-game-brand{background:radial-gradient(ellipse,#0d061ae6 35%,#0d061a00 75%)}
 body:not(.vivid-effects) .arena-header .header-pulse{opacity:.25}
+
+/* Board hardware: recessed violet channels and low-contrast etched tiles. */
+.cyber-interface .board-circuits{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;overflow:hidden;--seam-color:#8c5eb0}
+.cyber-interface .board>.cell{z-index:1}
+.cyber-interface .seam-tracks{stroke:var(--seam-color);stroke-width:1;opacity:.48;filter:drop-shadow(0 0 2px #9d58ca55);stroke-linejoin:bevel}
+.cyber-interface .tile-circuits{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;fill:none;stroke-linejoin:bevel;--trace-color:#9a83ab}
+.cyber-interface .tile-trace{stroke:var(--trace-color);stroke-width:.65;opacity:.27}
+.cyber-interface .tile-etch{stroke:#8295a8;stroke-width:.45;opacity:.15}
+.cyber-interface .tile-contact{fill:#b0a1b8;stroke:#0a1018;stroke-width:.6;opacity:.5}
+.cyber-interface .tile-terminal{stroke:#9dabb7;stroke-width:1.3;opacity:.4}
+.cyber-interface .tile-signal{stroke:var(--signal-color,var(--trace-color));stroke-width:1;stroke-dasharray:16 84;stroke-dashoffset:16;opacity:0;filter:drop-shadow(0 0 1.5px var(--signal-color))}
+.cyber-interface .mark-x .tile-circuits{--trace-color:#59c9f5}
+.cyber-interface .mark-o .tile-circuits{--trace-color:#f6a16d}
+.cyber-interface .cell.mark-x .tile-trace,.cyber-interface .cell.mark-o .tile-trace{opacity:.37}
+.cyber-interface .cell.expiring .tile-trace{opacity:.15}
+.cyber-interface .cell.cracked .tile-etch{opacity:.32;stroke:#76cee5}
+.cyber-interface .cell.electrified .tile-contact{fill:#b8f3ff;opacity:.9}
+body.vivid-effects .cell.circuit-hit .tile-signal{animation:tileCircuitSignal .48s cubic-bezier(.2,.65,.45,1) both}
+body.vivid-effects .cell.circuit-hit .tile-terminal{animation:terminalCharge .7s ease-out both}
+@keyframes tileCircuitSignal{0%{stroke-dashoffset:16;opacity:0}12%{opacity:1}80%{opacity:.85}100%{stroke-dashoffset:-100;opacity:0}}
+@keyframes terminalCharge{0%,25%{stroke:#9dabb7;opacity:.4}40%{stroke:var(--signal-color);opacity:1;filter:drop-shadow(0 0 2px var(--signal-color))}100%{stroke:#9dabb7;opacity:.4;filter:none}}
+.cyber-interface .seam-burst path{stroke:var(--signal-color);stroke-width:1.6;stroke-linejoin:bevel;stroke-dasharray:14 86;stroke-dashoffset:14;opacity:0;filter:drop-shadow(0 0 2px var(--signal-color));animation:seamCircuitSignal .62s .22s ease-out both}
+@keyframes seamCircuitSignal{0%{stroke-dashoffset:14;opacity:0}15%{opacity:.9}75%{opacity:.6}100%{stroke-dashoffset:-100;opacity:0}}
+body.vivid-effects.tension-mid .seam-tracks{opacity:.65}
+body.vivid-effects.tension-high .seam-tracks{opacity:.8;stroke:#b880de}
+body.vivid-effects.tension-critical .seam-tracks{opacity:.95;stroke:#d3a3f2;filter:drop-shadow(0 0 3px #bf73eb80)}
+.cyber-interface .comeback-powercut .board-circuits,.cyber-interface .comeback-powercut .tile-circuits{opacity:.08}
+.cyber-interface .comeback-break .tile-circuits{opacity:.12}
+.cyber-interface .comeback-break .board-circuits,.cyber-interface .comeback-collapse .board-circuits{visibility:hidden}
+body:not(.vivid-effects) .tile-signal,body:not(.vivid-effects) .seam-signals,body.reduced-motion .tile-signal,body.reduced-motion .seam-signals{display:none}
+body:not(.vivid-effects) .tile-terminal,body.reduced-motion .tile-terminal{animation:none!important}
