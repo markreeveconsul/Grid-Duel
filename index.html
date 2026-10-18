@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=emp-surge-2">
+<link rel="stylesheet" href="style.css?v=machine-theme-1">
 
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:ital,wght@1,900&family=Permanent+Marker&family=Blaka&family=Rajdhani:ital,wght@1,700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -17,7 +17,7 @@
 <div class="bg-texture" id="bgTexture"></div>
 <div class="bg-vignette"></div>
 <!-- Decorative circuitry stays behind the arena and never captures input. -->
-<div class="circuit-backdrop" aria-hidden="true"><canvas id="circuit-canvas"></canvas><div class="background-scanlines"></div></div>
+<div class="circuit-backdrop" aria-hidden="true"><canvas id="circuit-canvas"></canvas><div class="background-scanlines"></div><div class="machine-dust" aria-hidden="true"><i style="--dust-x:7%;--dust-delay:-0s;--dust-time:18s"></i><i style="--dust-x:19%;--dust-delay:-2s;--dust-time:19s"></i><i style="--dust-x:31%;--dust-delay:-4s;--dust-time:20s"></i><i style="--dust-x:43%;--dust-delay:-6s;--dust-time:21s"></i><i style="--dust-x:55%;--dust-delay:-8s;--dust-time:22s"></i><i style="--dust-x:67%;--dust-delay:-10s;--dust-time:23s"></i><i style="--dust-x:79%;--dust-delay:-12s;--dust-time:24s"></i><i style="--dust-x:91%;--dust-delay:-14s;--dust-time:25s"></i></div></div>
 
 <div id="impactFrame" aria-hidden="true"></div>
 <div id="fx" aria-hidden="true">
@@ -62,7 +62,7 @@
       <div class="score score--o"><span class="score-tag" id="labelO">AI / O</span><span class="score-value" id="scoreO">0</span><span class="score-pips" id="pipsO" aria-hidden="true"></span></div>
     </div>
 
-  <section class="play-area" aria-label="Game arena">
+  <section class="play-area" aria-label="Game arena"><div class="machine-hardware" aria-hidden="true"><i></i><i></i><i></i><i></i><span>GD / CIRCUIT MATRIX</span></div>
     <div class="round-heading"><span id="roundLabel">ROUND 01</span><span class="format-label">RACE TO 3 <span aria-hidden="true">◆</span></span></div>
     <div class="status-block"><p class="status" id="status" role="status" aria-live="polite" aria-atomic="true">Your turn</p><p class="turn-hint" id="turnHint">You are X. Make your first move.</p></div>
     <div class="board-wrap">
@@ -112,7 +112,7 @@
 </main>
 
 <!-- Load after the HTML so JavaScript can find the buttons and board. -->
-<script src="script.js?v=emp-surge-2"></script>
+<script src="script.js?v=machine-theme-1"></script>
 
 </body>
 </html>
