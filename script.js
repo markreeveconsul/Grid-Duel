@@ -229,6 +229,8 @@ const O_MARK = `<svg class="mark-svg" viewBox="0 0 100 100">
 </svg>`;
 
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
 // ---------- Cell layers ----------
 // Each cell holds two independent layers so lightning cracks persist
 // regardless of the X/O mark being drawn or cleared on top of them.
@@ -243,12 +245,68 @@ cells.forEach(cell => {
     const crackSlot = document.createElement("span");
     crackSlot.className = "crack-slot";
 
+// Decorative hardware is independent of the mark and persistent crack layers.
+    const circuits=svgElement('svg',{viewBox:'0 0 100 100',class:'tile-circuits','aria-hidden':'true',focusable:'false'});
+    for(let corner=0;corner<4;corner++) {
+        const group=svgElement('g',{transform:'rotate('+(corner*90)+' 50 50)'});
+        const d='M36 36 L24 24 H14 V12 L23 3 H50';
+        group.append(svgElement('path',{d,class:'tile-trace'}),svgElement('path',{d,class:'tile-signal',pathLength:100}),svgElement('path',{d:'M29 34 L20 34 L8 22 V12',class:'tile-etch'}),svgElement('circle',{cx:36,cy:36,r:1.3,class:'tile-contact'}),svgElement('path',{d:'M9 3 H19 M3 9 V19',class:'tile-terminal'}));
+        circuits.appendChild(group);
+    }
+    cell.prepend(circuits);
     cell.append(crackSlot, markSlot);
 
     markSlots.push(markSlot);
     crackSlots.push(crackSlot);
 });
 
+
+// ---------- Board circuit channels and landing signal ----------
+const boardCircuits=svgElement('svg',{class:'board-circuits','aria-hidden':'true',focusable:'false'});
+const seamTracks=svgElement('path',{class:'seam-tracks',fill:'none'});
+const seamSignals=svgElement('g',{class:'seam-signals',fill:'none'});
+boardCircuits.append(seamTracks,seamSignals);boardEl.prepend(boardCircuits);
+let circuitLayoutFrame=null;
+function layoutBoardCircuits() {
+    const w=boardEl.clientWidth,h=boardEl.clientHeight;
+    if(!w||!h)return;
+    boardCircuits.setAttribute('viewBox','0 0 '+w+' '+h);
+    const x1=(cells[0].offsetLeft+cells[0].offsetWidth+cells[1].offsetLeft)/2;
+    const x2=(cells[1].offsetLeft+cells[1].offsetWidth+cells[2].offsetLeft)/2;
+    const y1=(cells[0].offsetTop+cells[0].offsetHeight+cells[3].offsetTop)/2;
+    const y2=(cells[3].offsetTop+cells[3].offsetHeight+cells[6].offsetTop)/2;
+    seamTracks.setAttribute('d','M3 3 H'+(w-3)+' V'+(h-3)+' H3 Z M'+x1+' 3 V'+(h-3)+' M'+x2+' 3 V'+(h-3)+' M3 '+y1+' H'+(w-3)+' M3 '+y2+' H'+(w-3));
+}
+function scheduleCircuitLayout(){
+    cancelAnimationFrame(circuitLayoutFrame);
+    circuitLayoutFrame=requestAnimationFrame(()=>{circuitLayoutFrame=null;layoutBoardCircuits();});
+}
+window.addEventListener('resize',scheduleCircuitLayout);
+if(typeof ResizeObserver!=='undefined')new ResizeObserver(scheduleCircuitLayout).observe(boardEl);
+scheduleCircuitLayout();
+function clearCircuitFeedback(){
+    seamSignals.replaceChildren();
+    cells.forEach(cell=>{cell.classList.remove('circuit-hit');delete cell.dataset.circuitToken;cell.style.removeProperty('--signal-color');});
+}
+function pulseBoardCircuit(index,player){
+    if(!vividEffects||motionPreference.matches||boardEl.classList.contains('comeback-collapse'))return;
+    layoutBoardCircuits();
+    const cell=cells[index],token=String(++landingSerial);
+    cell.dataset.circuitToken=token;cell.style.setProperty('--signal-color',TEAM_COLOR[player]);
+    restartAnimation(cell,'circuit-hit');
+    const w=boardEl.clientWidth,h=boardEl.clientHeight;
+    const x=cell.offsetLeft+cell.offsetWidth/2,y=cell.offsetTop+cell.offsetHeight/2;
+    const row=Math.floor(index/3),col=index%3;
+    // Signals leave the tile's four edge contacts, then run through the gaps.
+    const left=col===0?3:(cells[index-1].offsetLeft+cells[index-1].offsetWidth+cell.offsetLeft)/2;
+    const right=col===2?w-3:(cell.offsetLeft+cell.offsetWidth+cells[index+1].offsetLeft)/2;
+    const top=row===0?3:(cells[index-3].offsetTop+cells[index-3].offsetHeight+cell.offsetTop)/2;
+    const bottom=row===2?h-3:(cell.offsetTop+cell.offsetHeight+cells[index+3].offsetTop)/2;
+    const signal=svgElement('g',{'class':'seam-burst'});signal.style.setProperty('--signal-color',TEAM_COLOR[player]);
+    ['M'+x+' '+y+' V'+top+' H3','M'+x+' '+y+' V'+bottom+' H'+(w-3),'M'+x+' '+y+' H'+left+' V'+(h-3),'M'+x+' '+y+' H'+right+' V3'].forEach(d=>signal.appendChild(svgElement('path',{d,pathLength:100})));
+    seamSignals.appendChild(signal);
+    tableLater(()=>{signal.remove();if(cell.dataset.circuitToken===token){cell.classList.remove('circuit-hit');delete cell.dataset.circuitToken;cell.style.removeProperty('--signal-color');}},900);
+}
 
 // ---------- Embers (rise below the board, intensity set by tension tier) ----------
 
@@ -555,6 +613,7 @@ function renderBoard(previous = []) {
     cells.forEach((cell,i) => {
         if (previous[i] !== board[i]) {
             markSlots[i].innerHTML = '';
+            cell.classList.remove('circuit-hit');delete cell.dataset.circuitToken;cell.style.removeProperty('--signal-color');
             if (board[i]) renderMark(cell,board[i]);
             cell.classList.toggle('vanished', Boolean(previous[i] && !board[i]));
         }
@@ -791,7 +850,7 @@ function resetTensionEffects() {
 
 // ---------- Electrical eruptions above the fractured tiles ----------
 // The layer is outside the clipped cells: arcs rise into the air and cross tile edges.
-const SVG_NS = 'http://www.w3.org/2000/svg';
+
 const surgeLayer = document.createElementNS(SVG_NS,'svg');
 surgeLayer.classList.add('surge-layer');
 surgeLayer.setAttribute('aria-hidden','true');
@@ -1457,6 +1516,7 @@ function tableLater(fn,delay) {
     const timer=setTimeout(()=>{tableTimers.delete(timer);fn();},delay);tableTimers.add(timer);
 }
 function clearTableFeedback() {
+    clearCircuitFeedback();
     tableTimers.forEach(clearTimeout);tableTimers.clear();
     document.querySelectorAll('.move-impact,.falling-mark,.landing-shadow,.score-award').forEach(el=>el.classList.contains('score-award') ? el.classList.remove('score-award') : el.remove());
     cells.forEach(cell=>cell.classList.remove('placement'));
@@ -1499,6 +1559,7 @@ function placementFeedback(index,player,reason='') {
         slot.style.visibility='';delete slot.dataset.landing;
         slot.querySelectorAll('.stroke').forEach(stroke=>{stroke.style.animation='none';stroke.style.strokeDashoffset='0';});
         restartAnimation(cells[index],'placement');
+        pulseBoardCircuit(index,player);
         const effect=document.createElement('div');effect.className='move-impact move-'+player.toLowerCase()+(heavy?' heavy-impact':'');effect.setAttribute('aria-hidden','true');
         effect.style.left=(t.left+t.width/2-r.left)/r.width*100+'%';effect.style.top=(t.top+t.height/2-r.top)/r.height*100+'%';
         if(player==='O'){const ring=document.createElement('i');ring.className='move-ring';effect.appendChild(ring);}
