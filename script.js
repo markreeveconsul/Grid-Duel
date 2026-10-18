@@ -624,13 +624,13 @@ function renderBoard(previous = []) {
         cell.classList.toggle('last-move',i === state.queues[currentPlayer === 'X' ? 'O' : 'X'].at(-1));
         // aria-disabled keeps every tile available to keyboard navigation.
         cell.disabled = false;
-        cell.setAttribute('aria-disabled',String(Boolean(board[i]) || !gameActive || !isHumanControlled(currentPlayer)));
+        cell.setAttribute('aria-disabled',String(Boolean(board[i]) || !gameActive || roundEntrance || !isHumanControlled(currentPlayer)));
         cell.setAttribute('aria-label','Row '+(Math.floor(i/3)+1)+', column '+(i%3+1)+', '+(board[i] || 'empty')+(expiring ? ', next to vanish for '+board[i] : ''));
     });
-    boardEl.setAttribute('aria-busy',String(gameActive && !isHumanControlled(currentPlayer)));
+    boardEl.setAttribute('aria-busy',String(roundEntrance || (gameActive && !isHumanControlled(currentPlayer))));
 }
 function makeMove(index,player) {
-    if (!gameActive || player !== currentPlayer) return;
+    if (!gameActive || roundEntrance || player !== currentPlayer) return;
     const next = GridRules.play(state,index);
     if (!next) return;
     const landingReason = chooseLanding(state,next,player);
@@ -654,7 +654,8 @@ function makeMove(index,player) {
             cells.forEach((cell,i) => cell.classList.toggle('winning',state.line.includes(i)));
             statusText.textContent = matchComplete ? playerName(player)+(gameMode === 'pvc' && player === HUMAN ? ' take the match!' : ' takes the match!') : winMessage(player);
             statusText.className = 'status turn-'+player.toLowerCase();
-            if (!(matchComplete && comebackEligible[player])) triggerWinEffects(player,state.line);
+            resetTensionEffects();
+            document.documentElement.style.setProperty('--winner-color',TEAM_COLOR[player]);
             sound('win',player);
         } else {
             statusText.textContent = 'Round drawn';
@@ -678,13 +679,14 @@ function makeMove(index,player) {
     placementFeedback(index,player,landingReason);
     if (state.winner) awardFeedback(player);
     updateTensionEffects();
-    if (matchComplete && comebackEligible[player]) showEpicComeback(player,index);
+    if (state.winner) finishBoardRound(player,index,state.line,matchComplete && comebackEligible[player]);
 }
 function playerName(player) {
     return gameMode === 'pvc' ? player === HUMAN ? 'You' : 'AI' : gameMode === 'cvc' ? 'AI '+player : 'Player '+player;
 }
 function winMessage(player) { return playerName(player)+(gameMode === 'pvc' && player === HUMAN ? ' win the round!' : ' wins the round!'); }
 function updateStatusText() {
+    if(roundEntrance){statusText.textContent='Board incoming';document.getElementById('turnHint').textContent='Stand by for impact.';return;}
     if (!matchStarted || setupPaused) {
         statusText.textContent = matchStarted ? 'Match paused' : 'Ready when you are';
         statusText.className = 'status';
@@ -706,7 +708,7 @@ function updateStatusText() {
 function advanceTurn() {
     clearTimeout(aiTimer);
     aiTimer = null;
-    if (!gameActive || isHumanControlled(currentPlayer) || document.hidden) return;
+    if (!gameActive || roundEntrance || isHumanControlled(currentPlayer) || document.hidden) return;
     const ticket = revision;
     const player = currentPlayer;
     aiTimer = setTimeout(() => {
@@ -780,7 +782,7 @@ function syncEffects() {
         ? 'Auto follows reduced motion. Choose Vivid or Extreme to enable animations.'
         : effectsLevel === 'calm' ? 'Calm: storm and landing animations are off.'
         : 'Animations enabled. Lightning begins after five moves in a round.';
-    if (!vividEffects) { clearComebackEffects(); clearTableFeedback(); }
+    if (!vividEffects) { clearComebackEffects(); clearTableFeedback(); clearRoundCinema(); advanceTurn(); }
     if (gameActive) updateTensionEffects();
 }
 document.getElementById('effectsSelect').addEventListener('change',event => {
@@ -1587,6 +1589,100 @@ function collapseDust(scene) {
 }
 window.addEventListener('resize',updateTableAtmosphere);
 
+// ---------- Winning-line overload and replacement-board impact ----------
+// All callbacks belong to a generation, so a reset cannot damage the next board.
+let roundEntrance=false;
+let cinemaGeneration=0;
+const cinemaTimers=new Set();
+function cinemaLater(fn,delay){
+    const ticket=cinemaGeneration;
+    const timer=setTimeout(()=>{cinemaTimers.delete(timer);if(ticket===cinemaGeneration)fn();},delay);
+    cinemaTimers.add(timer);
+}
+function clearRoundCinema(){
+    cinemaGeneration++;cinemaTimers.forEach(clearTimeout);cinemaTimers.clear();roundEntrance=false;
+    const wrap=document.querySelector('.board-wrap');
+    wrap.classList.remove('emp-hit','emp-glitch','emp-offline','board-arriving','arrival-impact');
+    wrap.querySelectorAll('.emp-overlay,.arrival-debris').forEach(el=>el.remove());
+    cells.forEach(cell=>cell.classList.remove('emp-winning'));
+    boardEl.removeAttribute('aria-busy');
+}
+function cinemaImpact(wrap){
+    restartAnimation(wrap,'arrival-impact');
+    const debris=document.createElement('div');debris.className='arrival-debris';debris.setAttribute('aria-hidden','true');
+    for(let i=0;i<16;i++){
+        const chip=document.createElement('i');
+        chip.style.setProperty('--dx',((i%2?1:-1)*(30+i*5))+'px');
+        chip.style.setProperty('--dy',(-18-i%5*9)+'px');
+        chip.style.left=(i%2?95:5)+'%';chip.style.top=(12+(i*23)%78)+'%';debris.appendChild(chip);
+    }
+    wrap.appendChild(debris);cinemaLater(()=>{debris.remove();wrap.classList.remove('arrival-impact');},650);
+}
+function finishBoardRound(player,index,line,epic){
+    clearRoundCinema();clearStamp();stopLightning();
+    const wrap=document.querySelector('.board-wrap');
+    if(!vividEffects||motionPreference.matches){if(epic)showEpicComeback(player,index);return;}
+    // The existing heavy mark lands at 290ms; impact and arcs start together.
+    cinemaLater(()=>{
+        const overlay=svgElement('svg',{class:'emp-overlay',viewBox:'0 0 100 100','aria-hidden':'true'});
+        const origin=cellCenterPercent(index);
+        if(impactFramesEnabled)overlay.appendChild(svgElement('rect',{x:0,y:0,width:100,height:100,class:'emp-flash'}));
+        overlay.appendChild(svgElement('circle',{cx:origin.x,cy:origin.y,r:15,class:'emp-ring'}));
+        line.forEach((tile,k)=>{
+            cells[tile].classList.add('emp-winning');
+            const end=cellCenterPercent(tile);
+            const d='M '+origin.x+' '+origin.y+' L '+((origin.x+end.x)/2-4)+' '+((origin.y+end.y)/2+5)+' L '+((origin.x+end.x)/2+3)+' '+((origin.y+end.y)/2-3)+' L '+end.x+' '+end.y;
+            overlay.appendChild(svgElement('path',{d,class:'emp-arc',style:'--arc-delay:'+k*35+'ms'}));
+            pulseBoardCircuit(tile,player);
+        });
+        wrap.appendChild(overlay);wrap.classList.add('emp-hit');cinemaImpact(wrap);
+    },290);
+    cinemaLater(()=>wrap.classList.add('emp-glitch'),430);
+    // The line glitches first; then a separate discharge crosses all nine tiles.
+    cinemaLater(()=>{
+        wrap.classList.remove('emp-glitch');
+        const overlay=wrap.querySelector('.emp-overlay');
+        if(!overlay)return;
+        const center=cellCenterPercent(line[1]);
+        for(let i=0;i<9;i++){
+            const end=cellCenterPercent(i);
+            const dx=end.x-center.x,dy=end.y-center.y;
+            let d='M '+center.x+' '+center.y;
+            for(let step=1;step<=6;step++){
+                const t=step/6,jitter=step===6?0:(step%2?1:-1)*3.5;
+                d+=' L '+(center.x+dx*t+jitter)+' '+(center.y+dy*t-jitter);
+            }
+            overlay.appendChild(svgElement('path',{d,class:'emp-board-arc',pathLength:100,style:'--surge-delay:'+(i%3*25)+'ms'}));
+            pulseBoardCircuit(i,player);
+        }
+        // Cross-board forks make the discharge read across the entire surface.
+        ['M2 18 L14 24 26 16 39 34 51 26 65 39 79 31 98 43','M2 74 L18 64 31 78 47 61 60 72 75 57 88 68 98 60'].forEach(d=>overlay.appendChild(svgElement('path',{d,class:'emp-board-arc',pathLength:100,style:'--surge-delay:50ms'})));
+    },1010);
+    cinemaLater(()=>{
+        wrap.classList.remove('emp-hit','emp-glitch','arrival-impact');
+        wrap.classList.add('emp-offline');
+        clearCircuitFeedback();winLine.classList.remove('drawn');
+        wrap.querySelector('.emp-overlay')?.remove();
+        document.getElementById('turnHint').textContent=epic?'Overload detected.':matchComplete?'Match complete. Play again to deploy a new board.':'Board offline. Next round deploys a new board.';
+    },1400);
+    if(epic)cinemaLater(()=>{clearRoundCinema();showEpicComeback(player,index);},1800);
+}
+function arriveBoard(){
+    if(!vividEffects||motionPreference.matches)return;
+    roundEntrance=true;
+    clearTimeout(aiTimer);aiTimer=null;
+    clearCracks();
+    const wrap=document.querySelector('.board-wrap');
+    wrap.classList.add('board-arriving');boardEl.setAttribute('aria-busy','true');
+    cinemaLater(()=>{
+        wrap.classList.remove('board-arriving');cinemaImpact(wrap);
+    },430);
+    cinemaLater(()=>{
+        roundEntrance=false;boardEl.setAttribute('aria-busy','false');
+        renderBoard();updateStatusText();advanceTurn();
+    },740);
+}
+
 // ---------- Round lifecycle ----------
 restartButton.addEventListener('click',() => {
     if (!matchStarted) { startMatch(); return; }
@@ -1605,6 +1701,8 @@ function newMatch() {
     restartGame();
 }
 function restartGame() {
+    const replaceBoard=Boolean(state.winner || state.draw);
+    clearRoundCinema();
     tacticalLandingUsed = false;
     clearComebackEffects(); clearTableFeedback();
     revision++;
@@ -1624,6 +1722,7 @@ function restartGame() {
     restartButton.textContent = matchStarted ? 'Restart round' : 'Start match';
     syncSetupAction();
     document.getElementById('moveLabel').textContent = '00 MOVES';
+    if(replaceBoard) arriveBoard();
     updateMatchUI(); updateStatusText(); renderBoard(); updateTensionEffects(); advanceTurn();
 }
 function syncSetupAction() {
@@ -1636,6 +1735,7 @@ function startMatch() {
     syncSetupAction(); updateStatusText(); renderBoard(); updateTensionEffects(); advanceTurn();
 }
 function pauseForSetup() {
+    if(roundEntrance) clearRoundCinema();
     if (gameActive) {
         setupPaused = true; gameActive = false; revision++;
         clearTimeout(aiTimer); aiTimer = null;
@@ -1972,7 +2072,7 @@ document.getElementById('startMatch').addEventListener('click', () => {
      document.getElementById('cyberVictoryDesc').textContent=comebackEligible[state.winner]?'From 0–2 down to match winner. Play again to rebuild the board.':'Three round wins. Circuit complete. Ready for another match?';
      // Keep the pixel comeback message and destroyed board fully visible.
      if(!comebackEligible[state.winner]&&!setupDialog.open)victory.showModal();
-   },comebackEligible[state.winner]?6800:1000);
+   },comebackEligible[state.winner]?8600:2000);
  });
  observer.observe(statusText,{childList:true,characterData:true,subtree:true});
  document.getElementById('cyberReplay').addEventListener('click',()=>{victory.close();restartButton.click();});
