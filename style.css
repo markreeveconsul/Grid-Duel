@@ -2020,3 +2020,44 @@ body.vivid-effects .emp-glitch .emp-winning .mark-slot{animation:winningCorrupti
 body.vivid-effects .emp-glitch .emp-winning{animation:winningTileFault .19s steps(1,end) 3 both}
 .emp-board-arc{fill:none;stroke:#d8faff;stroke-width:.85;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:100;stroke-dashoffset:100;filter:drop-shadow(0 0 1px #39bfff) drop-shadow(0 0 3px #55dfff80);animation:boardDischarge .32s var(--surge-delay,0ms) linear both}
 @keyframes boardDischarge{0%{stroke-dashoffset:100;opacity:0}15%{opacity:1}35%{stroke-dashoffset:0;opacity:1}60%{stroke-dashoffset:0;opacity:.7}100%{stroke-dashoffset:0;opacity:0}}
+
+/* The table is one powered machine, with physical contacts and readable state. */
+.machine-hardware{position:absolute;inset:0;pointer-events:none;z-index:0}
+.machine-hardware i{position:absolute;width:6px;height:6px;border:1px solid #72808b;border-radius:50%;background:linear-gradient(135deg,#18222c 44%,#8c96a0 46% 55%,#111820 57%);box-shadow:0 1px 2px #000}
+.machine-hardware i:nth-child(1){top:8px;left:8px}.machine-hardware i:nth-child(2){top:8px;right:8px}.machine-hardware i:nth-child(3){bottom:18px;left:8px}.machine-hardware i:nth-child(4){bottom:18px;right:8px}
+.machine-hardware span{position:absolute;bottom:13px;left:24px;font:6px 'Courier New',monospace;letter-spacing:1px;color:#8b7c9d;opacity:.6}
+.cyber-interface .play-area{background:radial-gradient(ellipse at 0 45%,#2fb8ff09,transparent 45%),radial-gradient(ellipse at 100% 45%,#ff7a4509,transparent 45%),#020617}
+.machine-dust{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:2}
+.machine-dust i{position:absolute;left:var(--dust-x);bottom:-5%;width:2px;height:2px;background:#c6b7df;opacity:0}
+body.vivid-effects:not(.reduced-motion) .machine-dust i{animation:ambientDust var(--dust-time) var(--dust-delay) linear infinite}
+@keyframes ambientDust{0%,100%{opacity:0}20%,70%{opacity:.18}90%{opacity:0}100%{transform:translate(30px,-95vh)}}
+.power-cables .machine-feed{fill:none;stroke:var(--feed-color);stroke-width:3;stroke-dasharray:12 88;filter:drop-shadow(0 0 3px var(--feed-color));animation:machineDelivery var(--feed-duration) linear both}
+@keyframes machineDelivery{from{stroke-dashoffset:12;opacity:1}to{stroke-dashoffset:-100;opacity:0}}
+/* A small, repeating signal fault replaces the label only at hard difficulty. */
+.cyber-interface .cell.hard-expiring::after{content:none!important;display:none!important}
+.cyber-interface .cell.hard-expiring .mark-slot{opacity:.88;filter:drop-shadow(1px 0 #88dfff88) drop-shadow(-1px 0 #e67ce888)}
+body.vivid-effects:not(.reduced-motion) .cell.hard-expiring .mark-slot{animation:oldestSignalFault 2.2s steps(1,end) infinite}
+@keyframes oldestSignalFault{0%,16%,100%{transform:none;clip-path:inset(0)}3%{transform:translateX(-2px);clip-path:polygon(0 0,100% 0,100% 42%,0 42%,0 48%,100% 48%,100% 100%,0 100%)}6%{transform:translateX(2px);clip-path:inset(0)}9%{transform:translate(-1px,1px);clip-path:polygon(0 0,100% 0,100% 66%,0 66%,0 72%,100% 72%,100% 100%,0 100%)}12%{transform:translateX(1px);clip-path:inset(0)}}
+/* Calm retains a static chromatic cue; the accessible label still names the mark. */
+.retiring-mark{position:absolute;inset:0;pointer-events:none;z-index:3}
+.retiring-mark>span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;animation:retireSignal .5s calc(var(--band)*.012s) ease-in both}
+.retiring-mark .mark-svg{width:53%;height:53%}.retiring-mark .stroke{stroke:var(--retire-color)!important;stroke-dashoffset:0!important;animation:none!important;filter:drop-shadow(0 0 2px var(--retire-color))}
+@keyframes retireSignal{0%{transform:none;opacity:.8}25%{transform:translateX(calc((var(--band) - 1.5)*6px));opacity:.65}100%{transform:translate(0,36px) scaleX(.08) scaleY(.15);opacity:0}}
+.cyber-interface .cell.cracked .tile-terminal{stroke:#4a6574;opacity:.25}
+.cyber-interface .cell.cracked .tile-etch{stroke:#52616a;opacity:.4}
+body.vivid-effects:not(.reduced-motion) .cell.cracked .tile-circuits g:nth-child(2) .tile-contact{animation:damagedContact 4.8s steps(1,end) infinite}
+@keyframes damagedContact{0%,91%,100%{opacity:.2;fill:#788b96;filter:none}92%,95%{opacity:1;fill:#a5eeff;filter:drop-shadow(0 0 2px #63d7ff)}93%,97%{opacity:.3;filter:none}}
+/* EMP reaches the cables and displays, leaving the winning indicator lit. */
+.cyber-interface .arena.machine-emp .header-pulse,.cyber-interface .arena.machine-emp .cable-energy{animation:none!important;opacity:.04!important;filter:none}
+.cyber-interface .arena.machine-emp .score{animation:none!important;box-shadow:0 5px 12px #0009}
+.cyber-interface .arena.machine-emp .score::before,.cyber-interface .arena.machine-emp .score-pips{opacity:.18}
+.cyber-interface .arena.machine-emp .score-value{filter:brightness(.3);text-shadow:none;animation:displayPowerFault .3s steps(1,end) both}
+.cyber-interface .arena.machine-emp[data-emp-winner="x"] .score--x .score-value,.cyber-interface .arena.machine-emp[data-emp-winner="o"] .score--o .score-value{filter:brightness(1);text-shadow:0 0 8px var(--score-energy)}
+@keyframes displayPowerFault{0%,35%{transform:translateX(-2px)}15%,60%{transform:translateX(2px)}100%{transform:none}}
+.machine-boot .tile-circuits,.machine-boot .board-circuits{opacity:0;animation:contactBoot .12s calc(.43s + var(--boot-order,0)*.02s) both}
+@keyframes contactBoot{from{opacity:.05;filter:brightness(.3)}to{opacity:1;filter:brightness(1)}}
+.machine-boot .cable-energy{opacity:0!important;animation:none!important}
+.boot-sweep{position:absolute;inset:0;z-index:15;pointer-events:none;background:linear-gradient(transparent 42%,#8ce8ff20 49%,#c8f5ff90 50%,transparent 52%);animation:bootDiagnostic .31s linear both}
+@keyframes bootDiagnostic{from{transform:translateY(-55%);opacity:0}15%{opacity:.7}85%{opacity:.7}to{transform:translateY(55%);opacity:0}}
+body:not(.vivid-effects) .machine-feed,body:not(.vivid-effects) .retiring-mark,body:not(.vivid-effects) .boot-sweep,body.reduced-motion .machine-feed,body.reduced-motion .retiring-mark,body.reduced-motion .boot-sweep{display:none}
+.machine-hardware::before{content:"";position:absolute;top:5px;left:calc(50% - 26px);width:52px;height:3px;background:repeating-linear-gradient(90deg,#65708066 0 2px,transparent 2px 5px)}

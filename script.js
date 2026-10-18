@@ -549,6 +549,7 @@ let revision = 0;
 let effectsLevel = 'auto';
 let vividEffects = true;
 let soundEnabled = false;
+let machineHum=null;
 let audioContext = null;
 const systemMotionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
 // Auto follows the system. Explicit Vivid/Extreme selections enable motion.
@@ -612,6 +613,7 @@ function renderBoard(previous = []) {
     updateTableAtmosphere();
     cells.forEach((cell,i) => {
         if (previous[i] !== board[i]) {
+            if(previous[i] && !board[i]) retireCircuitMark(i,previous[i]);
             markSlots[i].innerHTML = '';
             cell.classList.remove('circuit-hit');delete cell.dataset.circuitToken;cell.style.removeProperty('--signal-color');
             if (board[i]) renderMark(cell,board[i]);
@@ -621,6 +623,8 @@ function renderBoard(previous = []) {
         cell.classList.toggle('mark-o',board[i] === 'O');
         const expiring = ruleset === 'vanish' && gameActive && board[i] && state.queues[board[i]].length === 3 && state.queues[board[i]][0] === i;
         cell.classList.toggle('expiring',Boolean(expiring));
+        cell.classList.toggle('hard-expiring',Boolean(expiring && difficulty==='hard'));
+        cell.style.setProperty('--boot-order',i);
         cell.classList.toggle('last-move',i === state.queues[currentPlayer === 'X' ? 'O' : 'X'].at(-1));
         // aria-disabled keeps every tile available to keyboard navigation.
         cell.disabled = false;
@@ -702,7 +706,7 @@ function updateStatusText() {
     boardEl.classList.add('turn-'+currentPlayer.toLowerCase());
     const queue = state.queues[currentPlayer];
     document.getElementById('turnHint').textContent = ruleset === 'vanish' && queue.length === 3
-        ? currentPlayer+'’s NEXT OUT mark disappears after this move.'
+        ? currentPlayer+(difficulty==='hard'?'’s glitching mark disappears after this move.':'’s NEXT OUT mark disappears after this move.')
         : gameMode === 'pvc' ? 'You are X. '+(currentPlayer === HUMAN ? 'Choose an empty tile.' : 'Plan your next move.') : 'Three in a row wins. '+currentPlayer+' plays next.';
 }
 function advanceTurn() {
@@ -751,6 +755,7 @@ function sound(kind,player = 'X') {
     try {
         if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
         if (audioContext.state !== 'running') { audioContext.resume().catch(() => {}); return; }
+        if(['impact','overload','shutdown','boot','relay'].includes(kind)){machineSound(kind);return;}
         const notes = kind === 'win' ? [440,554,659] : kind === 'draw' ? [260,220] : [player === 'X' ? 520 : 390];
         notes.forEach((frequency,i) => {
             const oscillator = audioContext.createOscillator(), gain = audioContext.createGain();
@@ -768,7 +773,7 @@ function syncSoundButton() {
     button.setAttribute('aria-pressed',String(soundEnabled));
     button.innerHTML = 'Sound <span>'+(soundEnabled ? 'ON' : 'OFF')+'</span>';
 }
-document.getElementById('soundToggle').addEventListener('click',() => { soundEnabled = !soundEnabled; syncSoundButton(); if(soundEnabled) sound('move'); });
+document.getElementById('soundToggle').addEventListener('click',() => { soundEnabled = !soundEnabled; syncSoundButton(); if(soundEnabled) sound('move'); syncMachineHum(); });
 function syncEffects() {
     vividEffects = effectsLevel !== 'calm' && !motionPreference.matches;
     stopLightning();
@@ -1384,6 +1389,12 @@ function fractureBoard(wrap, origin) {
         }
         fissures.append(svgElement('path',{d,'class':'fault-rim',pathLength:1}),svgElement('path',{d,'class':'fault-void',pathLength:1}));
     });
+    // Existing lightning damage provides secondary fault origins.
+    for(const index of crackedCells.slice(0,5)){
+        const point=cellCenterPercent(index),edge=point.x<50?0:100;
+        const d='M '+point.x+' '+point.y+' L '+(point.x+(edge-point.x)*.4)+' '+Math.max(0,point.y-7)+' L '+edge+' '+Math.min(100,point.y+8);
+        fissures.append(svgElement('path',{d,class:'fault-rim',pathLength:1}),svgElement('path',{d,class:'fault-void',pathLength:1}));
+    }
     wrap.appendChild(fissures); boardEl.classList.add('comeback-break');
 }
 // Each tile breaks into four irregular polygons, then drops inside a clipped pit.
@@ -1489,6 +1500,7 @@ for(const player of ['X','O']) {
 const wear=document.createElement('div');wear.className='surface-wear';wear.setAttribute('aria-hidden','true');document.querySelector('.play-area').prepend(wear);
 let cableLayoutFrame=null;
 function updateTableAtmosphere() {
+    syncMachineHum();
     arenaEl.dataset.power=gameActive && !document.hidden ? currentPlayer.toLowerCase() : 'none';
     wear.style.setProperty('--wear',String(.12+crackedCells.length*.035));
     if(cableLayoutFrame!==null) return;
@@ -1514,13 +1526,54 @@ function updateTableAtmosphere() {
         }
     });
 }
+// Connected hardware feedback shares the game's existing cleanup timers.
+function deliverMachinePower(index,player,duration){
+    const a=arenaEl.getBoundingClientRect(),display=document.querySelector('.score--'+player.toLowerCase()).getBoundingClientRect(),tile=cells[index].getBoundingClientRect();
+    if(!a.width||!a.height)return;
+    const x=display.left+display.width/2-a.left,y=display.top+display.height*.7-a.top;
+    const tx=tile.left+tile.width/2-a.left,ty=tile.top+tile.height/2-a.top;
+    const pulse=svgElement('path',{class:'machine-feed',d:'M '+x+' '+y+' C '+x+' '+(y+40)+','+tx+' '+(ty+30)+','+tx+' '+ty,pathLength:100});
+    pulse.style.setProperty('--feed-color',TEAM_COLOR[player]);pulse.style.setProperty('--feed-duration',duration+'ms');cableSvg.appendChild(pulse);tableLater(()=>pulse.remove(),duration+100);
+}
+function retireCircuitMark(index,player){
+    if(!vividEffects||motionPreference.matches)return;
+    const remnant=document.createElement('span');remnant.className='retiring-mark';remnant.setAttribute('aria-hidden','true');remnant.style.setProperty('--retire-color',TEAM_COLOR[player]);
+    for(let band=0;band<4;band++){
+        const slice=document.createElement('span');slice.style.setProperty('--band',band);slice.style.clipPath='inset('+(band*25)+'% 0 '+(75-band*25)+'% 0)';slice.innerHTML=player==='X'?X_MARK:O_MARK;remnant.appendChild(slice);
+    }
+    cells[index].appendChild(remnant);tableLater(()=>remnant.remove(),540);
+}
+function syncMachineHum(){
+    if(!audioContext||audioContext.state!=='running')return;
+    const audible=soundEnabled&&gameActive&&!document.hidden&&!roundEntrance&&!arenaEl.classList.contains('machine-emp');
+    if(!machineHum&&audible){
+        const oscillator=audioContext.createOscillator(),gain=audioContext.createGain();oscillator.type='sine';oscillator.frequency.value=55;gain.gain.value=0;oscillator.connect(gain);gain.connect(audioContext.destination);oscillator.start();machineHum={oscillator,gain};
+    }
+    if(machineHum){machineHum.gain.gain.cancelScheduledValues(audioContext.currentTime);machineHum.gain.gain.setTargetAtTime(audible ? .009 : 0,audioContext.currentTime,.08);}
+}
+function machineSound(kind){
+    const now=audioContext.currentTime;
+    if(kind==='overload'){
+        const buffer=audioContext.createBuffer(1,Math.ceil(audioContext.sampleRate*.23),audioContext.sampleRate),data=buffer.getChannelData(0);
+        for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*(i%240<70?1:.15);
+        const source=audioContext.createBufferSource(),gain=audioContext.createGain(),filter=audioContext.createBiquadFilter();
+        source.buffer=buffer;filter.type='bandpass';filter.frequency.value=1600;filter.Q.value=.7;
+        gain.gain.setValueAtTime(.035,now);gain.gain.exponentialRampToValueAtTime(.0001,now+.23);
+        source.connect(filter);filter.connect(gain);gain.connect(audioContext.destination);source.start(now);source.onended=()=>{source.disconnect();filter.disconnect();gain.disconnect();};return;
+    }
+    const osc=audioContext.createOscillator(),gain=audioContext.createGain();
+    const settings={impact:[110,28,.24,.1,'triangle'],shutdown:[420,35,.35,.045,'sawtooth'],boot:[180,720,.18,.025,'sine'],relay:[1200,650,.025,.018,'square'],overload:[1800,85,.23,.035,'sawtooth']}[kind];
+    osc.type=settings[4];osc.frequency.setValueAtTime(settings[0],now);osc.frequency.exponentialRampToValueAtTime(settings[1],now+settings[2]);
+    gain.gain.setValueAtTime(0,now);gain.gain.linearRampToValueAtTime(settings[3],now+.004);gain.gain.exponentialRampToValueAtTime(.0001,now+settings[2]);osc.connect(gain);gain.connect(audioContext.destination);osc.start(now);osc.stop(now+settings[2]+.02);osc.onended=()=>{osc.disconnect();gain.disconnect();};
+}
+
 function tableLater(fn,delay) {
     const timer=setTimeout(()=>{tableTimers.delete(timer);fn();},delay);tableTimers.add(timer);
 }
 function clearTableFeedback() {
     clearCircuitFeedback();
     tableTimers.forEach(clearTimeout);tableTimers.clear();
-    document.querySelectorAll('.move-impact,.falling-mark,.landing-shadow,.score-award').forEach(el=>el.classList.contains('score-award') ? el.classList.remove('score-award') : el.remove());
+    document.querySelectorAll('.move-impact,.falling-mark,.landing-shadow,.score-award,.retiring-mark,.machine-feed').forEach(el=>el.classList.contains('score-award') ? el.classList.remove('score-award') : el.remove());
     cells.forEach(cell=>cell.classList.remove('placement'));
     markSlots.forEach(slot=>{slot.style.visibility='';delete slot.dataset.landing;});
     arenaEl.classList.remove('landing-jolt');
@@ -1544,6 +1597,7 @@ function placementFeedback(index,player,reason='') {
     if(!vividEffects || motionPreference.matches) return;
     const wrap=document.querySelector('.board-wrap'),r=wrap.getBoundingClientRect(),t=cells[index].getBoundingClientRect();
     const heavy=Boolean(reason),duration=heavy ? 290 : 150;
+    deliverMachinePower(index,player,duration);
     const token=String(++landingSerial),slot=markSlots[index];
     const falling=document.createElement('div');falling.className='falling-mark'+(heavy?' heavy-landing':'')+(reason==='win'?' winning-landing':'');
     falling.dataset.reason=reason || 'normal';falling.setAttribute('aria-hidden','true');
@@ -1602,12 +1656,15 @@ function cinemaLater(fn,delay){
 function clearRoundCinema(){
     cinemaGeneration++;cinemaTimers.forEach(clearTimeout);cinemaTimers.clear();roundEntrance=false;
     const wrap=document.querySelector('.board-wrap');
+    arenaEl.classList.remove('machine-emp','machine-boot');delete arenaEl.dataset.empWinner;syncMachineHum();
+    wrap.querySelectorAll('.boot-sweep').forEach(el=>el.remove());
     wrap.classList.remove('emp-hit','emp-glitch','emp-offline','board-arriving','arrival-impact');
     wrap.querySelectorAll('.emp-overlay,.arrival-debris').forEach(el=>el.remove());
     cells.forEach(cell=>cell.classList.remove('emp-winning'));
     boardEl.removeAttribute('aria-busy');
 }
 function cinemaImpact(wrap){
+    sound('impact');
     restartAnimation(wrap,'arrival-impact');
     const debris=document.createElement('div');debris.className='arrival-debris';debris.setAttribute('aria-hidden','true');
     for(let i=0;i<16;i++){
@@ -1641,6 +1698,7 @@ function finishBoardRound(player,index,line,epic){
     // The line glitches first; then a separate discharge crosses all nine tiles.
     cinemaLater(()=>{
         wrap.classList.remove('emp-glitch');
+        arenaEl.dataset.empWinner=player.toLowerCase();arenaEl.classList.add('machine-emp');syncMachineHum();sound('overload');
         const overlay=wrap.querySelector('.emp-overlay');
         if(!overlay)return;
         const center=cellCenterPercent(line[1]);
@@ -1660,7 +1718,7 @@ function finishBoardRound(player,index,line,epic){
     },1010);
     cinemaLater(()=>{
         wrap.classList.remove('emp-hit','emp-glitch','arrival-impact');
-        wrap.classList.add('emp-offline');
+        wrap.classList.add('emp-offline');sound('shutdown');
         clearCircuitFeedback();winLine.classList.remove('drawn');
         wrap.querySelector('.emp-overlay')?.remove();
         document.getElementById('turnHint').textContent=epic?'Overload detected.':matchComplete?'Match complete. Play again to deploy a new board.':'Board offline. Next round deploys a new board.';
@@ -1669,16 +1727,17 @@ function finishBoardRound(player,index,line,epic){
 }
 function arriveBoard(){
     if(!vividEffects||motionPreference.matches)return;
-    roundEntrance=true;
+    roundEntrance=true;arenaEl.classList.add('machine-boot');syncMachineHum();
     clearTimeout(aiTimer);aiTimer=null;
     clearCracks();
     const wrap=document.querySelector('.board-wrap');
     wrap.classList.add('board-arriving');boardEl.setAttribute('aria-busy','true');
     cinemaLater(()=>{
         wrap.classList.remove('board-arriving');cinemaImpact(wrap);
+        const sweep=document.createElement('div');sweep.className='boot-sweep';sweep.setAttribute('aria-hidden','true');wrap.appendChild(sweep);sound('boot');
     },430);
     cinemaLater(()=>{
-        roundEntrance=false;boardEl.setAttribute('aria-busy','false');
+        roundEntrance=false;arenaEl.classList.remove('machine-boot');wrap.querySelector('.boot-sweep')?.remove();syncMachineHum();boardEl.setAttribute('aria-busy','false');
         renderBoard();updateStatusText();advanceTurn();
     },740);
 }
@@ -2079,3 +2138,6 @@ document.getElementById('startMatch').addEventListener('click', () => {
  document.getElementById('cyberVictorySetup').addEventListener('click',()=>{victory.close();document.getElementById('openSetup').click();});
  syncSynth();showTitle();
 })();
+
+// Suspend the ambient hum when this page is not being viewed.
+document.addEventListener("visibilitychange",syncMachineHum);
