@@ -1638,6 +1638,26 @@ function finishBoardRound(player,index,line,epic){
         wrap.appendChild(overlay);wrap.classList.add('emp-hit');cinemaImpact(wrap);
     },290);
     cinemaLater(()=>wrap.classList.add('emp-glitch'),430);
+    // The line glitches first; then a separate discharge crosses all nine tiles.
+    cinemaLater(()=>{
+        wrap.classList.remove('emp-glitch');
+        const overlay=wrap.querySelector('.emp-overlay');
+        if(!overlay)return;
+        const center=cellCenterPercent(line[1]);
+        for(let i=0;i<9;i++){
+            const end=cellCenterPercent(i);
+            const dx=end.x-center.x,dy=end.y-center.y;
+            let d='M '+center.x+' '+center.y;
+            for(let step=1;step<=6;step++){
+                const t=step/6,jitter=step===6?0:(step%2?1:-1)*3.5;
+                d+=' L '+(center.x+dx*t+jitter)+' '+(center.y+dy*t-jitter);
+            }
+            overlay.appendChild(svgElement('path',{d,class:'emp-board-arc',pathLength:100,style:'--surge-delay:'+(i%3*25)+'ms'}));
+            pulseBoardCircuit(i,player);
+        }
+        // Cross-board forks make the discharge read across the entire surface.
+        ['M2 18 L14 24 26 16 39 34 51 26 65 39 79 31 98 43','M2 74 L18 64 31 78 47 61 60 72 75 57 88 68 98 60'].forEach(d=>overlay.appendChild(svgElement('path',{d,class:'emp-board-arc',pathLength:100,style:'--surge-delay:50ms'})));
+    },1010);
     cinemaLater(()=>{
         wrap.classList.remove('emp-hit','emp-glitch','arrival-impact');
         wrap.classList.add('emp-offline');

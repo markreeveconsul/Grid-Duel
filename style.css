@@ -2013,3 +2013,10 @@ body.vivid-effects .emp-glitch .emp-winning{animation:winningTileFault .92s step
 @keyframes boardImpactDust{0%{transform:translate(0,0);opacity:1}55%{opacity:.65}100%{transform:translate(var(--dx),var(--dy)) rotate(110deg);opacity:0}}
 body.reduced-motion .emp-overlay,body.reduced-motion .arrival-debris{display:none}
 body.reduced-motion .board-wrap.board-arriving,body.reduced-motion .board-wrap.arrival-impact,body.reduced-motion .emp-winning,body.reduced-motion .emp-winning .mark-slot{animation:none!important}
+
+/* Fast line lock, synchronized rapid corruption, then a full-board discharge. */
+body.vivid-effects:not(.reduced-motion) #winLine.drawn{animation-duration:.12s;animation-timing-function:cubic-bezier(.15,.8,.3,1)}
+body.vivid-effects .emp-glitch .emp-winning .mark-slot{animation:winningCorruption .19s steps(1,end) 3 both}
+body.vivid-effects .emp-glitch .emp-winning{animation:winningTileFault .19s steps(1,end) 3 both}
+.emp-board-arc{fill:none;stroke:#d8faff;stroke-width:.85;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:100;stroke-dashoffset:100;filter:drop-shadow(0 0 1px #39bfff) drop-shadow(0 0 3px #55dfff80);animation:boardDischarge .32s var(--surge-delay,0ms) linear both}
+@keyframes boardDischarge{0%{stroke-dashoffset:100;opacity:0}15%{opacity:1}35%{stroke-dashoffset:0;opacity:1}60%{stroke-dashoffset:0;opacity:.7}100%{stroke-dashoffset:0;opacity:0}}
