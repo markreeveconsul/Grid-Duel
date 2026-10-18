@@ -1611,3 +1611,310 @@ document.getElementById('startMatch').addEventListener('click', () => {
   if (!matchStarted) startMatch();
   setupDialog.close();
 });
+
+
+// ===== SECTION D: ORIGINAL CYBERPUNK PRESENTATION =====
+// Isolated names keep the reference engine separate from the game rules.
+(()=>{
+        // --- 1. DENSE ISOMETRIC PURPLE CIRCUIT BOARD CANVAS ENGINE ---
+        const canvas = document.getElementById('circuit-canvas');
+        const ctx = canvas.getContext('2d');
+        if(!ctx) return;
+        let backgroundFrame=null;
+        const canAnimate=()=>vividEffects && !motionPreference.matches && !document.hidden;
+
+        let width, height;
+        let busLines = [];
+        let pulses = [];
+        let chipBoxes = [];
+
+        function resizeCanvas() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            generateIsometricCircuitry();
+        }
+
+        // Isometric projection helper (30-degree angle lines)
+        function projectIso(x, y) {
+            // Diagonal tilt angle ~ 26.5 to 30 degrees matching reference image
+            const isoX = x - y * 0.5;
+            const isoY = x * 0.58 + y * 0.85;
+            return { x: isoX, y: isoY };
+        }
+
+        class BusLine {
+            constructor(points, width, color) {
+                this.points = points; // Array of {x, y}
+                this.width = width;
+                this.color = color;
+            }
+
+            draw() {
+                if (this.points.length < 2) return;
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(this.points[0].x, this.points[0].y);
+                for (let i = 1; i < this.points.length; i++) {
+                    ctx.lineTo(this.points[i].x, this.points[i].y);
+                }
+                ctx.strokeStyle = this.color;
+                ctx.lineWidth = this.width;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.shadowColor = '#c084fc';
+                ctx.shadowBlur = this.width > 2 ? 12 : 5;
+                ctx.globalAlpha = .5;
+                ctx.lineWidth = this.width * 2.2;
+                ctx.stroke();
+                // A separate sharp trace sits inside the diffuse light.
+                ctx.globalAlpha = 1;
+                ctx.shadowBlur = 0;
+                ctx.lineWidth = this.width;
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        class CircuitPulse {
+            constructor(bus) {
+                this.bus = bus;
+                this.segmentIndex = 0;
+                this.progress = 0;
+                this.speed = Math.random() * 0.025 + 0.015;
+                this.size = Math.random() * 3 + 2.5;
+                this.color = Math.random() > 0.3 ? '#ffffff' : '#e879f9';
+            }
+
+            update() {
+                this.progress += this.speed;
+                if (this.progress >= 1) {
+                    this.progress = 0;
+                    this.segmentIndex++;
+                    if (this.segmentIndex >= this.bus.points.length - 1) {
+                        this.segmentIndex = 0; // Loop around or reset
+                    }
+                }
+            }
+
+            draw() {
+                if (!this.bus || this.bus.points.length < 2) return;
+                const p1 = this.bus.points[this.segmentIndex];
+                const p2 = this.bus.points[this.segmentIndex + 1];
+                if (!p1 || !p2) return;
+
+                const currX = p1.x + (p2.x - p1.x) * this.progress;
+                const currY = p1.y + (p2.y - p1.y) * this.progress;
+
+                ctx.save();
+                const radius=this.size*5;
+                const bloom=ctx.createRadialGradient(currX,currY,0,currX,currY,radius);
+                bloom.addColorStop(0,'rgba(255,235,255,.85)');
+                bloom.addColorStop(.18,'rgba(232,121,249,.5)');
+                bloom.addColorStop(.5,'rgba(168,85,247,.14)');
+                bloom.addColorStop(1,'rgba(168,85,247,0)');
+                ctx.fillStyle=bloom;
+                ctx.fillRect(currX-radius,currY-radius,radius*2,radius*2);
+                ctx.beginPath();
+                ctx.arc(currX,currY,this.size*.65,0,Math.PI*2);
+                ctx.fillStyle=this.color;
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(currX,currY,this.size*.28,0,Math.PI*2);
+                ctx.fillStyle='#fff8ff';
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        function generateIsometricCircuitry() {
+            busLines = [];
+            pulses = [];
+            chipBoxes = [];
+
+            // Generate ambient micro-chip footprints on substrate background
+            const numChips = Math.floor((width * height) / 120000);
+            for (let i = 0; i < numChips; i++) {
+                chipBoxes.push({
+                    x: Math.random() * width,
+                    y: Math.random() * height,
+                    w: Math.random() * 80 + 40,
+                    h: Math.random() * 60 + 30,
+                    pins: Math.floor(Math.random() * 8) + 4
+                });
+            }
+
+            // Parallel Dense Isometric Circuit Buses across screen
+            const busSpacing = 35;
+            const totalBusses = Math.floor((width + height) / busSpacing);
+
+            for (let b = -20; b < totalBusses; b++) {
+                let startX = b * busSpacing - width * 0.3;
+                let startY = -100;
+
+                let points = [];
+                let currentX = startX;
+                let currentY = startY;
+
+                // Build multi-segment isometric zigzag path (30-degree angles)
+                points.push({ x: currentX, y: currentY });
+
+                let segments = Math.floor(Math.random() * 4) + 4;
+                for (let s = 0; s < segments; s++) {
+                    const length = Math.random() * 200 + 120;
+                    const dir = s % 2 === 0 ? 0 : (Math.random() > 0.5 ? 1 : -1);
+
+                    if (dir === 0) {
+                        // Main diagonal trace down-right (~30 deg)
+                        currentX += length * 0.866;
+                        currentY += length * 0.5;
+                    } else if (dir === 1) {
+                        // Steep angle shift
+                        currentX += length * 0.5;
+                        currentY += length * 0.866;
+                    } else {
+                        // Horizontal jog
+                        currentX += length;
+                    }
+
+                    points.push({ x: currentX, y: currentY });
+                }
+
+                // Color gradient & neon intensity
+                const isMainBus = b % 4 === 0;
+                const widthVal = isMainBus ? (Math.random() > 0.5 ? 2.5 : 3.5) : 1.2;
+                const alpha = isMainBus ? (Math.random() * 0.3 + 0.6) : (Math.random() * 0.2 + 0.25);
+                const strokeColor = isMainBus
+                    ? `rgba(232, 121, 249, ${alpha})`
+                    : `rgba(168, 85, 247, ${alpha})`;
+
+                const bus = new BusLine(points, widthVal, strokeColor);
+                busLines.push(bus);
+
+                // Add energy pulses to main buses
+                if (isMainBus) {
+                    const numPulses = Math.floor(Math.random() * 2) + 1;
+                    for (let p = 0; p < numPulses; p++) {
+                        pulses.push(new CircuitPulse(bus));
+                    }
+                }
+            }
+        }
+
+        function drawCircuitBoardCanvas() {
+            ctx.clearRect(0, 0, width, height);
+
+            // Subtle dark grid background
+            ctx.strokeStyle = 'rgba(46, 16, 101, 0.15)';
+            ctx.lineWidth = 1;
+            const step = 40;
+            for (let x = 0; x < width; x += step) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height);
+                ctx.stroke();
+            }
+            for (let y = 0; y < height; y += step) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(width, y);
+                ctx.stroke();
+            }
+
+            // Draw Silicon Micro-Chip substrate footprints
+            chipBoxes.forEach(chip => {
+                ctx.save();
+                ctx.fillStyle = 'rgba(15, 6, 33, 0.65)';
+                ctx.strokeStyle = 'rgba(168, 85, 247, 0.25)';
+                ctx.lineWidth = 1;
+                ctx.fillRect(chip.x, chip.y, chip.w, chip.h);
+                ctx.strokeRect(chip.x, chip.y, chip.w, chip.h);
+
+                // Chip pin connectors
+                ctx.fillStyle = 'rgba(192, 132, 252, 0.4)';
+                for (let p = 0; p < chip.pins; p++) {
+                    const px = chip.x + (chip.w / chip.pins) * p + 2;
+                    ctx.fillRect(px, chip.y - 3, 3, 3);
+                    ctx.fillRect(px, chip.y + chip.h, 3, 3);
+                }
+                ctx.restore();
+            });
+
+            // Draw Isometric Bus Lines
+            busLines.forEach(bus => bus.draw());
+
+            // Draw Glowing Node Junction Dots at trace corners
+            busLines.forEach(bus => {
+                bus.points.forEach((pt, idx) => {
+                    if (idx > 0 && idx < bus.points.length - 1 && idx % 3 !== 0) {
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.arc(pt.x, pt.y, bus.width + 1.5, 0, Math.PI * 2);
+                        ctx.fillStyle = '#ffffff';
+                        ctx.shadowColor = '#e879f9';
+                        ctx.shadowBlur = 7;
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                });
+            });
+
+            // Update and draw current pulses
+            pulses.forEach(pulse => {
+                if(canAnimate()) pulse.update();
+                pulse.draw();
+            });
+
+            backgroundFrame=canAnimate()?requestAnimationFrame(drawCircuitBoardCanvas):null;
+        }
+
+        function restartBackground(){cancelAnimationFrame(backgroundFrame);resizeCanvas();drawCircuitBoardCanvas();}
+ window.addEventListener('resize',restartBackground);
+ document.addEventListener('visibilitychange',restartBackground);
+ document.getElementById('effectsSelect').addEventListener('change',restartBackground);
+ systemMotionPreference.addEventListener('change',restartBackground);
+ restartBackground();
+})();
+
+// Screen adapters: the original game is the single source of truth.
+(()=>{
+ const title=document.getElementById('screen-title');
+ const manual=document.getElementById('cyberManual');
+ const victory=document.getElementById('cyberVictory');
+ const initiate=document.getElementById('initiateProtocol');
+ let victoryTimer=null, presented=false;
+ function showTitle(){document.body.dataset.screen='title';title.hidden=false;arenaEl.inert=true;initiate.focus();}
+ function enterSetup(){document.body.dataset.screen='setup';title.hidden=true;arenaEl.inert=false;document.getElementById('openSetup').click();}
+ initiate.addEventListener('click',enterSetup);
+ document.getElementById('openManual').addEventListener('click',()=>manual.showModal());
+ setupDialog.addEventListener('close',()=>{
+   if(!matchStarted) showTitle();
+   else {document.body.dataset.screen='game';title.hidden=true;arenaEl.inert=false;window.dispatchEvent(new Event('resize'));}
+ });
+ function syncSynth(){
+   document.getElementById('audio-status').textContent=soundEnabled?'SYNTH: ONLINE':'SYNTH: OFFLINE';
+   document.getElementById('audio-toggle-btn').textContent=soundEnabled?'DISABLE SYNTH':'ENABLE SYNTH';
+   document.getElementById('hud-synth-btn').textContent=soundEnabled?'SYNTH ON':'SYNTH OFF';
+   ['audio-toggle-btn','hud-synth-btn'].forEach(id=>document.getElementById(id).setAttribute('aria-pressed',String(soundEnabled)));
+ }
+ ['audio-toggle-btn','hud-synth-btn'].forEach(id=>document.getElementById(id).addEventListener('click',()=>{document.getElementById('soundToggle').click();syncSynth();}));
+ document.getElementById('soundToggle').addEventListener('click',syncSynth);
+ // Wait for the existing destruction sequence before offering the reference result panel.
+ const observer=new MutationObserver(()=>{
+   if(!matchComplete){clearTimeout(victoryTimer);victoryTimer=null;presented=false;if(victory.open)victory.close();return;}
+   if(presented||victoryTimer!==null)return;
+   const ticket=revision;
+   victoryTimer=setTimeout(()=>{
+     victoryTimer=null;
+     if(ticket!==revision||!matchComplete)return;
+     presented=true;
+     document.getElementById('cyberVictoryTitle').textContent=comebackEligible[state.winner]?'EPIC COMEBACK BY '+state.winner:state.winner+' WINS THE MATCH';
+     document.getElementById('cyberVictoryDesc').textContent=comebackEligible[state.winner]?'From 0–2 down to match winner. Play again to rebuild the board.':'Three round wins. Circuit complete. Ready for another match?';
+     // Keep the pixel comeback message and destroyed board fully visible.
+     if(!comebackEligible[state.winner]&&!setupDialog.open)victory.showModal();
+   },comebackEligible[state.winner]?6800:1000);
+ });
+ observer.observe(statusText,{childList:true,characterData:true,subtree:true});
+ document.getElementById('cyberReplay').addEventListener('click',()=>{victory.close();restartButton.click();});
+ document.getElementById('cyberVictorySetup').addEventListener('click',()=>{victory.close();document.getElementById('openSetup').click();});
+ syncSynth();showTitle();
+})();
