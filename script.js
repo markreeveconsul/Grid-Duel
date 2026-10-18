@@ -1541,6 +1541,10 @@ function retireCircuitMark(index,player){
     for(let band=0;band<4;band++){
         const slice=document.createElement('span');slice.style.setProperty('--band',band);slice.style.clipPath='inset('+(band*25)+'% 0 '+(75-band*25)+'% 0)';slice.innerHTML=player==='X'?X_MARK:O_MARK;remnant.appendChild(slice);
     }
+    // Small rectangular fragments drain toward the same physical contact.
+    for(let i=0;i<8;i++){
+        const bit=document.createElement('i');bit.className='retire-bit';bit.style.setProperty('--bit-x',((i%2?1:-1)*(8+i*3))+'px');bit.style.setProperty('--bit-delay',(i%4*22)+'ms');bit.style.left=(30+(i*13)%40)+'%';bit.style.top=(30+(i*17)%40)+'%';remnant.appendChild(bit);
+    }
     cells[index].appendChild(remnant);tableLater(()=>remnant.remove(),540);
 }
 function syncMachineHum(){
@@ -1685,6 +1689,8 @@ function finishBoardRound(player,index,line,epic){
         const origin=cellCenterPercent(index);
         if(impactFramesEnabled)overlay.appendChild(svgElement('rect',{x:0,y:0,width:100,height:100,class:'emp-flash'}));
         overlay.appendChild(svgElement('circle',{cx:origin.x,cy:origin.y,r:15,class:'emp-ring'}));
+        const lock=svgElement('g',{class:'impact-lock',transform:'translate('+origin.x+' '+origin.y+')'});
+        lock.appendChild(svgElement('path',{d:'M-12 -5 V-12 H-5 M5 -12 H12 V-5 M12 5 V12 H5 M-5 12 H-12 V5',fill:'none'}));overlay.appendChild(lock);
         line.forEach((tile,k)=>{
             cells[tile].classList.add('emp-winning');
             const end=cellCenterPercent(tile);
@@ -1702,6 +1708,8 @@ function finishBoardRound(player,index,line,epic){
         const overlay=wrap.querySelector('.emp-overlay');
         if(!overlay)return;
         const center=cellCenterPercent(line[1]);
+        // An expanding angular fault front leads the irregular electrical forks.
+        const front=svgElement('rect',{x:4,y:4,width:92,height:92,rx:2,class:'emp-fault-front',fill:'none'});overlay.appendChild(front);
         for(let i=0;i<9;i++){
             const end=cellCenterPercent(i);
             const dx=end.x-center.x,dy=end.y-center.y;
