@@ -2086,3 +2086,8 @@ body:not(.vivid-effects) .machine-feed,body:not(.vivid-effects) .retiring-mark,b
 .cyber-interface .machine-emp .score-value{animation:displayDataLoss .3s steps(1,end) both}
 @keyframes displayDataLoss{0%{transform:translateX(-2px);clip-path:inset(0)}25%{transform:translateX(3px);clip-path:polygon(0 0,100% 0,100% 40%,0 40%,0 50%,100% 50%,100% 100%,0 100%)}50%{transform:translateX(-1px);clip-path:inset(0)}100%{transform:none;clip-path:inset(0)}}
 body:not(.vivid-effects) .machine-boot .tile-terminal,body.reduced-motion .machine-boot .tile-terminal{animation:none!important}
+
+/* Title navigation shares the existing match pause state. */
+#continueMatch[hidden]{display:none!important}
+.cyber-header-actions{flex-wrap:wrap}
+@media(max-width:760px){#returnToTitle{font-size:9px;padding:8px;min-height:40px}}
