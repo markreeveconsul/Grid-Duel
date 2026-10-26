@@ -2061,3 +2061,33 @@ body.vivid-effects:not(.reduced-motion) .cell.cracked .tile-circuits g:nth-child
 @keyframes bootDiagnostic{from{transform:translateY(-55%);opacity:0}15%{opacity:.7}85%{opacity:.7}to{transform:translateY(55%);opacity:0}}
 body:not(.vivid-effects) .machine-feed,body:not(.vivid-effects) .retiring-mark,body:not(.vivid-effects) .boot-sweep,body.reduced-motion .machine-feed,body.reduced-motion .retiring-mark,body.reduced-motion .boot-sweep{display:none}
 .machine-hardware::before{content:"";position:absolute;top:5px;left:calc(50% - 26px);width:52px;height:3px;background:repeating-linear-gradient(90deg,#65708066 0 2px,transparent 2px 5px)}
+
+/* Cybernetic signal language: packets, segmented contacts and angular faults. */
+.power-cables .machine-feed{stroke-width:2.5;stroke-linecap:butt;stroke-dasharray:4 2 1 2 2 89;filter:drop-shadow(0 0 1px #dcfaff) drop-shadow(0 0 4px var(--feed-color))}
+.cyber-interface .seam-burst path{stroke-dasharray:5 2 2 3 2 86;stroke-width:1.3;stroke-linecap:butt}
+.cyber-interface .tile-signal{stroke-dasharray:6 3 2 89;stroke-linecap:butt;stroke-width:1.1}
+.cyber-interface .circuit-hit .tile-contact{fill:var(--signal-color);filter:drop-shadow(0 0 2px var(--signal-color))}
+.impact-lock path{stroke:#c3f3ff;stroke-width:.6;stroke-linecap:square;stroke-dasharray:4 1;animation:impactTargetLock .4s ease-out both}
+@keyframes impactTargetLock{0%{opacity:0;transform:scale(1.6)}18%{opacity:.85;transform:scale(1)}70%{opacity:.4}100%{opacity:0;transform:scale(.95)}}
+.emp-ring{stroke-dasharray:6 3;stroke-width:.7}
+.emp-fault-front{stroke:#bdeaff;stroke-width:.7;stroke-dasharray:6 2 1 2;transform-box:fill-box;transform-origin:center;filter:drop-shadow(0 0 2px #5fbaff);animation:empFaultExpansion .34s cubic-bezier(.1,.6,.2,1) both}
+@keyframes empFaultExpansion{0%{transform:scale(.2);opacity:0}12%{opacity:.8}65%{opacity:.45}100%{transform:scale(1);opacity:0}}
+.emp-board-arc{stroke-width:.65;filter:drop-shadow(0 0 1px #a6eaff) drop-shadow(0 0 3px #408bff66)}
+.retiring-mark>span{animation:retireDataSlice .48s calc(var(--band)*.012s) steps(5,end) both}
+@keyframes retireDataSlice{0%{opacity:.85;transform:none}25%{opacity:.7;transform:translateX(calc((var(--band) - 1.5)*9px))}55%{opacity:.4;transform:translate(calc((var(--band) - 1.5)*4px),12px) scaleX(.65)}100%{opacity:0;transform:translate(0,37px) scale(.04,.1)}}
+.retire-bit{position:absolute;width:3px;height:2px;background:var(--retire-color);box-shadow:0 0 3px var(--retire-color);animation:retireDataBit .42s var(--bit-delay) steps(6,end) both}
+@keyframes retireDataBit{0%{opacity:0;transform:translate(0,0)}18%{opacity:.9;transform:translateX(var(--bit-x))}70%{opacity:.55}100%{opacity:0;transform:translate(0,32px) scale(.3)}}
+/* Diagnostic mesh is transient, not a permanent foreground CRT overlay. */
+.boot-sweep{background:linear-gradient(transparent 46%,#73ddff12 48%,#c8f7ffaa 50%,#50bafc22 51%,transparent 54%);overflow:hidden}
+.boot-sweep::before{content:'';position:absolute;inset:35% 0;background:repeating-linear-gradient(90deg,transparent 0 10%,#8cdbff55 10% calc(10% + 1px));opacity:.4}
+.machine-boot .tile-terminal{animation:terminalHandshake .14s calc(.43s + var(--boot-order,0)*.02s) both}
+@keyframes terminalHandshake{from{stroke:#c6f6ff;opacity:1;filter:drop-shadow(0 0 2px #59dbff)}to{stroke:#9dabb7;opacity:.4;filter:none}}
+.cyber-interface .machine-emp .score-tag{opacity:.45}
+.cyber-interface .machine-emp .score-value{animation:displayDataLoss .3s steps(1,end) both}
+@keyframes displayDataLoss{0%{transform:translateX(-2px);clip-path:inset(0)}25%{transform:translateX(3px);clip-path:polygon(0 0,100% 0,100% 40%,0 40%,0 50%,100% 50%,100% 100%,0 100%)}50%{transform:translateX(-1px);clip-path:inset(0)}100%{transform:none;clip-path:inset(0)}}
+body:not(.vivid-effects) .machine-boot .tile-terminal,body.reduced-motion .machine-boot .tile-terminal{animation:none!important}
+
+/* Title navigation shares the existing match pause state. */
+#continueMatch[hidden]{display:none!important}
+.cyber-header-actions{flex-wrap:wrap}
+@media(max-width:760px){#returnToTitle{font-size:9px;padding:8px;min-height:40px}}

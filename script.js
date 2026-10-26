@@ -17,6 +17,9 @@
 // ===== SECTION A: RULES, SCOREBOARD CLASS, AND AI =====
 /* Pure rules and AI. No DOM, timers, or external dependencies. */
 
+/* 58-66, 1879-1910, 1912-1961 */
+/*102, 128, 143 152, 732, 746, 2124, 2136*/ 
+
 // ===== DATABASE: saves finished matches to the SQLite server =====
 function getPlayerName() {
   try {
@@ -97,6 +100,7 @@ const GridRules = (() => {
     }
     return n;
   }
+  //Checks all possible winning line to see if X/O has formed a line//
   function evaluate(s,p) {
     let score = 0;
     for (const line of lines) {
@@ -124,6 +128,7 @@ const GridRules = (() => {
       if (b.every(Boolean)) return 0;
       const k = b.map(v => v || '-').join('') + turn;
       if (cache.has(k)) return cache.get(k);
+      //The classic AI checks empty board cell to make a possible move.
       let best = turn === player ? -Infinity : Infinity;
       for (let i = 0; i < 9; i++) if (!b[i]) {
         b[i] = turn;
@@ -138,6 +143,7 @@ const GridRules = (() => {
       if (position.winner) return position.winner === player ? 1000 + left : -1000 - left;
       if (position.draw) return 0;
       if (!left) return evaluate(position,player);
+      //predicts all the possible moves the player will make
       const max = position.turn === player;
       let best = max ? -Infinity : Infinity;
       for (const i of ordered(position)) {
@@ -148,6 +154,7 @@ const GridRules = (() => {
       }
       return best;
     }
+    //compares all the moves the ai has predicted and will pick the best move it will make
     let best = -Infinity, result = moves[0];
     for (const i of ordered(s)) {
       const n = play(s,i);
@@ -544,6 +551,8 @@ let roundNumber = 1;
 let matchComplete = false;
 let roundResults = [];
 let state = GridRules.create();
+let roundMoves = [];
+let persistenceReady = false;
 let aiTimer = null;
 let revision = 0;
 let effectsLevel = 'auto';
@@ -639,6 +648,7 @@ function makeMove(index,player) {
     if (!next) return;
     const landingReason = chooseLanding(state,next,player);
     const previous = board;
+    roundMoves.push(index);
     state = next;
     board = state.board;
     moveCount = state.moves;
@@ -680,6 +690,7 @@ function makeMove(index,player) {
     }
     document.getElementById('moveLabel').textContent = String(moveCount).padStart(2,'0')+' MOVES';
     renderBoard(previous);
+    saveUnfinishedMatch();
     placementFeedback(index,player,landingReason);
     if (state.winner) awardFeedback(player);
     updateTensionEffects();
@@ -722,6 +733,7 @@ function advanceTurn() {
         if (move !== null) makeMove(move,player);
     },gameMode === 'cvc' ? 650 : 380);
 }
+//updates the visible scores fo X/O
 function updateMatchUI() {
     scoreXEl.textContent = scores.X;
     scoreOEl.textContent = scores.O;
@@ -736,6 +748,7 @@ function updateMatchUI() {
         document.getElementById('label'+p).textContent = (gameMode === 'pvc' ? p === 'X' ? 'YOU' : 'AI' : gameMode === 'cvc' ? 'AI' : 'PLAYER')+' / '+p;
         document.getElementById('pips'+p).innerHTML = [0,1,2].map(i => '<i class="'+(i<scores[p] ? 'filled' : scores[p]===2 && !matchComplete ? 'fuse-armed' : '')+'"></i>').join('');
     }
+    //loops through the saved matches and creates a row for each win/loss in history tab
     document.getElementById('roundLabel').textContent = matchComplete ? 'MATCH COMPLETE' : 'ROUND '+String(roundNumber).padStart(2,'0');
     const log = document.getElementById('roundHistory');
     log.innerHTML = '';
@@ -1541,6 +1554,10 @@ function retireCircuitMark(index,player){
     for(let band=0;band<4;band++){
         const slice=document.createElement('span');slice.style.setProperty('--band',band);slice.style.clipPath='inset('+(band*25)+'% 0 '+(75-band*25)+'% 0)';slice.innerHTML=player==='X'?X_MARK:O_MARK;remnant.appendChild(slice);
     }
+    // Small rectangular fragments drain toward the same physical contact.
+    for(let i=0;i<8;i++){
+        const bit=document.createElement('i');bit.className='retire-bit';bit.style.setProperty('--bit-x',((i%2?1:-1)*(8+i*3))+'px');bit.style.setProperty('--bit-delay',(i%4*22)+'ms');bit.style.left=(30+(i*13)%40)+'%';bit.style.top=(30+(i*17)%40)+'%';remnant.appendChild(bit);
+    }
     cells[index].appendChild(remnant);tableLater(()=>remnant.remove(),540);
 }
 function syncMachineHum(){
@@ -1685,6 +1702,8 @@ function finishBoardRound(player,index,line,epic){
         const origin=cellCenterPercent(index);
         if(impactFramesEnabled)overlay.appendChild(svgElement('rect',{x:0,y:0,width:100,height:100,class:'emp-flash'}));
         overlay.appendChild(svgElement('circle',{cx:origin.x,cy:origin.y,r:15,class:'emp-ring'}));
+        const lock=svgElement('g',{class:'impact-lock',transform:'translate('+origin.x+' '+origin.y+')'});
+        lock.appendChild(svgElement('path',{d:'M-12 -5 V-12 H-5 M5 -12 H12 V-5 M12 5 V12 H5 M-5 12 H-12 V5',fill:'none'}));overlay.appendChild(lock);
         line.forEach((tile,k)=>{
             cells[tile].classList.add('emp-winning');
             const end=cellCenterPercent(tile);
@@ -1702,6 +1721,8 @@ function finishBoardRound(player,index,line,epic){
         const overlay=wrap.querySelector('.emp-overlay');
         if(!overlay)return;
         const center=cellCenterPercent(line[1]);
+        // An expanding angular fault front leads the irregular electrical forks.
+        const front=svgElement('rect',{x:4,y:4,width:92,height:92,rx:2,class:'emp-fault-front',fill:'none'});overlay.appendChild(front);
         for(let i=0;i<9;i++){
             const end=cellCenterPercent(i);
             const dx=end.x-center.x,dy=end.y-center.y;
@@ -1770,6 +1791,7 @@ function restartGame() {
     clearStamp(); resetTensionEffects();
     document.querySelectorAll('#fx .spark').forEach(spark => spark.remove());
     fxFlash.classList.remove('play'); arenaEl.classList.remove('jolt');
+    roundMoves = [];
     state = GridRules.create(ruleset,roundStarter);
     board = state.board; currentPlayer = state.turn; moveCount = 0;
     cells.forEach((cell,i) => {
@@ -1783,13 +1805,14 @@ function restartGame() {
     document.getElementById('moveLabel').textContent = '00 MOVES';
     if(replaceBoard) arriveBoard();
     updateMatchUI(); updateStatusText(); renderBoard(); updateTensionEffects(); advanceTurn();
+    saveUnfinishedMatch();
 }
 function syncSetupAction() {
     document.getElementById('startMatch').textContent = !matchStarted ? 'Start match' : setupPaused ? 'Resume match' : 'Return to board';
 }
 function startMatch() {
     if (matchStarted) return;
-    matchStarted = true; setupPaused = false; gameActive = true;
+    matchStarted = true; setupPaused = false; gameActive = true; saveUnfinishedMatch();
     restartButton.textContent = 'Restart round';
     syncSetupAction(); updateStatusText(); renderBoard(); updateTensionEffects(); advanceTurn();
 }
@@ -2095,6 +2118,93 @@ document.getElementById('startMatch').addEventListener('click', () => {
  restartBackground();
 })();
 
+// ---------- Local unfinished-match save ----------
+// Save legal move history, then replay it on load to rebuild queues and repetition counts.
+const MATCH_SAVE_KEY = 'cyber-grid-unfinished-v1';
+function decodeMatchSave(raw) {
+    const data = JSON.parse(raw);
+    if (!data || data.version !== 1 || !['pvc','pvp','cvc'].includes(data.mode) ||
+        !['easy','medium','hard'].includes(data.difficulty) || !['classic','vanish'].includes(data.rule) ||
+        !['auto','calm','vivid','extreme'].includes(data.effects) ||
+        typeof data.sound !== 'boolean' || typeof data.impact !== 'boolean' ||
+        !Array.isArray(data.results) || data.results.length > 10000 ||
+        !Array.isArray(data.moves) || data.moves.length > 60 || !Number.isInteger(data.round) || data.round < 1) return null;
+    const totals = {X:0,O:0}, comeback = {X:false,O:false};
+    for (let i=0;i<data.results.length;i++) {
+        const entry=data.results[i];
+        if (!entry || entry.round !== i+1 || ![null,'X','O'].includes(entry.winner)) return null;
+        if (entry.winner) {
+            const player=entry.winner, opponent=player==='X'?'O':'X';
+            totals[player]++;
+            if (totals[player]>=3) return null; // Completed matches are never continued.
+            if (totals[player]===2 && totals[opponent]===0) comeback[opponent]=true;
+        }
+    }
+    //When continuing a unfinished game it replays all the saved moves from that match one by one
+    const starter=data.round%2===1?'X':'O';
+    let restored=GridRules.create(data.rule,starter);
+    for (const index of data.moves) {
+        restored=GridRules.play(restored,index);
+        if (!restored) return null;
+    }
+    const ended=Boolean(restored.winner||restored.draw);
+    if (data.results.length !== data.round-(ended?0:1)) return null;
+    if (ended && data.results.at(-1).winner !== restored.winner) return null;
+    return {data,restored,totals,comeback,starter};
+}
+function saveUnfinishedMatch() {
+    if (!persistenceReady) return;
+    try {
+        if (!matchStarted || matchComplete) { localStorage.removeItem(MATCH_SAVE_KEY); return; }
+        localStorage.setItem(MATCH_SAVE_KEY,JSON.stringify({version:1,mode:gameMode,difficulty,rule:ruleset,
+            effects:effectsLevel,sound:soundEnabled,impact:impactFramesEnabled,
+            round:roundNumber,results:roundResults,moves:roundMoves}));
+    } catch (_) { console.warn('Cyber Grid could not save locally. Keep this page open to continue this match.'); }
+}
+function showRoundResult() {
+    if (!(state.winner || state.draw)) { updateStatusText(); return; }
+    statusText.textContent=state.winner?winMessage(state.winner):'Round drawn';
+    statusText.className=state.winner?'status turn-'+state.winner.toLowerCase():'status';
+    document.getElementById('turnHint').textContent=state.draw?state.draw+'. No points awarded.':'Point to '+state.winner+'. '+(roundStarter==='X'?'O':'X')+' starts the next round.';
+    restartButton.textContent='Next round →';
+}
+function restoreUnfinishedMatch() {
+    try {
+        const raw=localStorage.getItem(MATCH_SAVE_KEY);
+        if (!raw) return;
+        const decoded=decodeMatchSave(raw);
+        if (!decoded) { localStorage.removeItem(MATCH_SAVE_KEY); return; }
+        const {data,restored,totals,comeback,starter}=decoded;
+        gameMode=data.mode;difficulty=data.difficulty;ruleset=data.rule;
+        effectsLevel=data.effects;soundEnabled=data.sound;impactFramesEnabled=data.impact;
+        roundNumber=data.round;roundResults=data.results;roundMoves=[...data.moves];roundStarter=starter;
+        scores.X=totals.X;scores.O=totals.O;comebackEligible=comeback;
+        state=restored;board=state.board;currentPlayer=state.turn;moveCount=state.moves;
+        matchStarted=true;matchComplete=false;gameActive=false;
+        setupPaused=!(state.winner||state.draw);
+        selectButtons(modeTabs,gameMode,'mode');selectButtons(difficultyTabs,difficulty,'difficulty');selectButtons(ruleTabs,ruleset,'rule');
+        document.getElementById('difficultySection').hidden=gameMode==='pvp';
+        document.getElementById('ruleBadge').textContent=ruleset==='classic'?'CLASSIC / 3 × 3':'VANISHING / 3 MARKS';
+        document.getElementById('ruleHelp').textContent=ruleset==='classic'?'Connect three marks in a row, column, or diagonal. First to three round wins takes the match.':'Only three marks per player. Place a fourth and your oldest disappears. Build a line with the three that remain.';
+        document.getElementById('impactToggle').checked=impactFramesEnabled;
+        document.getElementById('moveLabel').textContent=String(moveCount).padStart(2,'0')+' MOVES';
+        restartButton.textContent='Restart round';
+        syncSoundButton();syncEffects();syncSetupAction();updateMatchUI();renderBoard();showRoundResult();
+        if(state.winner){drawWinLine(state.line);cells.forEach((cell,i)=>cell.classList.toggle('winning',state.line.includes(i)));}
+    } catch (_) {
+        // Invalid JSON and unavailable storage must never prevent a new game.
+        try { localStorage.removeItem(MATCH_SAVE_KEY); } catch (_) {}
+    }
+}
+restoreUnfinishedMatch();
+persistenceReady=true;
+window.addEventListener('pagehide',saveUnfinishedMatch);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)saveUnfinishedMatch();});
+document.getElementById('effectsSelect').addEventListener('change',saveUnfinishedMatch);
+document.getElementById('impactToggle').addEventListener('change',saveUnfinishedMatch);
+document.getElementById('soundToggle').addEventListener('click',saveUnfinishedMatch);
+
+
 // Screen adapters: the original game is the single source of truth.
 (()=>{
  const title=document.getElementById('screen-title');
@@ -2102,8 +2212,42 @@ document.getElementById('startMatch').addEventListener('click', () => {
  const victory=document.getElementById('cyberVictory');
  const initiate=document.getElementById('initiateProtocol');
  let victoryTimer=null, presented=false;
- function showTitle(){document.body.dataset.screen='title';title.hidden=false;arenaEl.inert=true;initiate.focus();}
- function enterSetup(){document.body.dataset.screen='setup';title.hidden=true;arenaEl.inert=false;document.getElementById('openSetup').click();}
+ const continueButton=document.getElementById('continueMatch');
+ function hasUnfinishedMatch(){
+   return Boolean(matchStarted&&!matchComplete&&scores.X<3&&scores.O<3&&
+     Number.isInteger(roundNumber)&&roundNumber>0&&Array.isArray(roundResults)&&Array.isArray(roundMoves));
+ }
+ function syncTitleActions(){
+   const canContinue=hasUnfinishedMatch();
+   continueButton.hidden=!canContinue;
+   continueButton.setAttribute('aria-hidden',String(!canContinue));
+   initiate.textContent=canContinue?'MATCH SETUP':'INITIATE PROTOCOL';
+   return canContinue;
+ }
+ function showTitle(){
+   clearTimeout(victoryTimer);victoryTimer=null;
+   document.body.dataset.screen='title';title.hidden=false;arenaEl.inert=true;
+   (syncTitleActions()?continueButton:initiate).focus();
+ }
+ function returnToTitle(){
+   pauseForSetup();
+   revision++;clearTimeout(aiTimer);aiTimer=null;
+   clearRoundCinema();clearTableFeedback();clearComebackEffects();clearStamp();resetTensionEffects();
+   if(victory.open)victory.close();
+   saveUnfinishedMatch();syncMachineHum();showTitle();
+ }
+ function continueMatch(){
+   if(!hasUnfinishedMatch()){syncTitleActions();return;}
+   document.body.dataset.screen='game';title.hidden=true;arenaEl.inert=false;
+   resumeFromSetup();
+   showRoundResult();renderBoard();syncMachineHum();
+   window.dispatchEvent(new Event('resize'));
+   restartButton.focus();
+ }
+ document.getElementById('returnToTitle').addEventListener('click',returnToTitle);
+ document.getElementById('victoryToTitle').addEventListener('click',returnToTitle);
+ continueButton.addEventListener('click',continueMatch);
+ function enterSetup(){if(matchComplete)newMatch();document.body.dataset.screen='setup';title.hidden=true;arenaEl.inert=false;document.getElementById('openSetup').click();}
  initiate.addEventListener('click',enterSetup);
  document.getElementById('openManual').addEventListener('click',()=>manual.showModal());
  setupDialog.addEventListener('close',()=>{
@@ -2121,11 +2265,11 @@ document.getElementById('startMatch').addEventListener('click', () => {
  // Wait for the existing destruction sequence before offering the reference result panel.
  const observer=new MutationObserver(()=>{
    if(!matchComplete){clearTimeout(victoryTimer);victoryTimer=null;presented=false;if(victory.open)victory.close();return;}
-   if(presented||victoryTimer!==null)return;
+   if(document.body.dataset.screen==='title'||presented||victoryTimer!==null)return;
    const ticket=revision;
    victoryTimer=setTimeout(()=>{
      victoryTimer=null;
-     if(ticket!==revision||!matchComplete)return;
+     if(ticket!==revision||!matchComplete||document.body.dataset.screen==='title')return;
      presented=true;
      document.getElementById('cyberVictoryTitle').textContent=comebackEligible[state.winner]?'EPIC COMEBACK BY '+state.winner:state.winner+' WINS THE MATCH';
      document.getElementById('cyberVictoryDesc').textContent=comebackEligible[state.winner]?'From 0–2 down to match winner. Play again to rebuild the board.':'Three round wins. Circuit complete. Ready for another match?';
